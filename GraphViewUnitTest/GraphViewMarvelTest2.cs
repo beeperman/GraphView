@@ -258,5 +258,18 @@ namespace GraphViewUnitTest
             cmd.CommandText = "g.V().as('v').has('name', 'WOODGOD').addE('appeared').to(g.V().has('name', 'AVF 4')).next()";
             cmd.Execute();
         }
+        [TestMethod]
+        public void GraphViewMarvelInsertTest()
+        {
+            GraphViewConnection connection = new GraphViewConnection("https://graphview.documents.azure.com:443/",
+                "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
+                "GroupMatch", "TransactionTest");
+            connection.ResetCollection();
+            GraphViewCommand graph = new GraphViewCommand(connection);
+
+            graph.g().AddV("character" + DateTime.Now).Property("name", "VENUS II").Property("weapon", "shield").Next();
+            graph.g().AddV("comicbook" + DateTime.Now).Property("name", "AVF 4").Next();
+            graph.g().V().Has("name", "VENUS II").AddE("appeared").To(graph.g().V().Has("name", "AVF 4")).Next();
+        }
     }
 }

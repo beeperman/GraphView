@@ -34,7 +34,7 @@ using Microsoft.Azure.Documents.Client;
 using Newtonsoft.Json;
 using System.Threading;
 using Newtonsoft.Json.Linq;
-
+using System.Text;
 // For debugging
 
 namespace GraphView
@@ -142,7 +142,71 @@ namespace GraphView
                 DocDBclient.DeleteDocumentCollectionAsync(DocDB_Collection.SelfLink)
                     .ConfigureAwait(continueOnCapturedContext: false);
         }
+        // new
+        //["3eb1b75d-071d-4098-8821-14e41a4e81b5", {
+        //    "$addToSet": {
+        //        "_edge": {
+        //            "_ID": 0,
+        //            "_reverse_ID": 0,
+        //            "_sink": "b44bdaff-2773-454f-a719-3f2f80d00c6c",
+        //            "label": "appeared",
+        //            "_sinkLabel": "comicbook"
+        //        }
+        //    }
+        //}]
+        public string generateInsertEdgeObjectString(string vertexId, JObject edgeObject)
+        {
+            var jsonDocArr = new StringBuilder();
+            jsonDocArr.Append("[\"" + vertexId + "\", {\"$addToSet\": { \"_edge\":  ");
+            jsonDocArr.Append(edgeObject.ToString());
+            jsonDocArr.Append("}}]");
+            //jsonDocArr.Append(GraphViewJsonCommand.ConstructNodeJsonString(nodes[currentIndex]));
 
+            //while (jsonDocArr.Length < maxJsonSize && ++currentIndex < nodes.Count)
+            //    jsonDocArr.Append(", " + GraphViewJsonCommand.ConstructNodeJsonString(nodes[currentIndex]));
+
+            //jsonDocArr.Append("]");
+            return jsonDocArr.ToString();
+        }
+        public void InsertEdgeInTransaction(string srcId, string sinkId, JObject edgeObject, JObject revEdgeObject)
+        {
+            // (1) create procedure
+            string collectionLink = "dbs/" + DocDB_DatabaseId + "/colls/" + DocDB_CollectionId;
+
+            // Each batch size is determined by maxJsonSize.
+            // maxJsonSize should be so that:
+            // -- it fits into one request (MAX request size is ???).
+            // -- it doesn't cause the script to time out, so the batch number can be minimzed.
+            const int maxJsonSize = 50000;
+
+            // Prepare the BulkInsert stored procedure
+            string jsBody = File.ReadAllText(@"..\..\..\GraphView\GraphViewExecutionRuntime\transaction\update.js");
+            StoredProcedure sproc = new StoredProcedure
+            {
+                Id = "UpdateEdge",
+                Body = jsBody,
+            };
+
+            var bulkInsertCommand = new GraphViewCommand(this);
+            //Create the BulkInsert stored procedure if it doesn't exist
+            Task<StoredProcedure> spTask = bulkInsertCommand.TryCreatedStoredProcedureAsync(collectionLink, sproc);
+            spTask.Wait();
+            sproc = spTask.Result;
+            var sprocLink = sproc.SelfLink;
+            // (2) Update source vertex
+            var json_arr = generateInsertEdgeObjectString(srcId, edgeObject);
+            var objs = new dynamic[] { JsonConvert.DeserializeObject<dynamic[]>(json_arr) };
+            // Execute the batch
+            Task<int> insertTask = bulkInsertCommand.BulkInsertAsync(sprocLink, objs[0]);
+            insertTask.Wait();
+            // (3) Update des vertex
+            json_arr = generateInsertEdgeObjectString(sinkId, revEdgeObject);
+            objs = new dynamic[] { JsonConvert.DeserializeObject<dynamic>(json_arr) };
+            // Execute the batch
+            insertTask = bulkInsertCommand.BulkInsertAsync(sprocLink, objs);
+            insertTask.Wait();
+        }
+        // new
         public void BulkInsertNodes(List<string> nodes)
         {
             if (!nodes.Any()) return;

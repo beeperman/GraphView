@@ -39,13 +39,13 @@ namespace GraphView
 {
     public partial class GraphViewCommand : IDisposable
     {
-        public GraphViewConnection GraphViewConnection { get; set; }
+        public connection GraphViewConnection { get; set; }
         
         public string CommandText { get; set; }
 
         public OutputFormat OutputFormat { get; set; }
 
-        public GraphViewCommand(GraphViewConnection connecion)
+        public GraphViewCommand(connection connecion)
         {
             GraphViewConnection = connecion;
         }
@@ -55,7 +55,7 @@ namespace GraphView
             CommandText = commandText;
         }
 
-        public GraphViewCommand(string commandText, GraphViewConnection connection)
+        public GraphViewCommand(string commandText, connection connection)
         {
             CommandText = commandText;
             GraphViewConnection = connection;

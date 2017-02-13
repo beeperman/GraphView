@@ -1113,7 +1113,7 @@ namespace GraphView
         // Number of vertices processed so far
         internal int NumberOfProcessedVertices;
 
-        internal static IQueryable<dynamic> SendQuery(string script, GraphViewConnection connection)
+        internal static IQueryable<dynamic> SendQuery(string script, connection connection)
         {
             FeedOptions QueryOptions = new FeedOptions { MaxItemCount = -1 };
             IQueryable<dynamic> Result = connection.DocDBclient.CreateDocumentQuery(

@@ -6,6 +6,10 @@ using System.Threading.Tasks;
 using Microsoft.Azure.Documents;
 using System.IO;
 using Newtonsoft.Json.Linq;
+using Microsoft.Azure.Documents.Client;
+using System.Threading.Tasks;
+using Newtonsoft.Json.Converters;
+using Newtonsoft.Json;
 
 namespace GraphViewUnitTest
 {
@@ -15,7 +19,7 @@ namespace GraphViewUnitTest
         [TestMethod]
         public void SelectMarvelQuery1()
         {
-            GraphViewConnection connection = new GraphViewConnection("https://graphview.documents.azure.com:443/",
+            connection connection = new connection("https://graphview.documents.azure.com:443/",
                 "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
                 "GroupMatch", "MarvelTest");
 
@@ -32,7 +36,7 @@ namespace GraphViewUnitTest
         [TestMethod]
         public void SelectMarvelQuery1b()
         {
-            GraphViewConnection connection = new GraphViewConnection("https://graphview.documents.azure.com:443/",
+            connection connection = new connection("https://graphview.documents.azure.com:443/",
                 "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
                 "GroupMatch", "MarvelTest");
 
@@ -51,7 +55,7 @@ namespace GraphViewUnitTest
         [TestMethod]
         public void SelectMarvelQuery1c()
         {
-            GraphViewConnection connection = new GraphViewConnection("https://graphview.documents.azure.com:443/",
+            connection connection = new connection("https://graphview.documents.azure.com:443/",
                 "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
                 "GroupMatch", "MarvelTest");
 
@@ -70,7 +74,7 @@ namespace GraphViewUnitTest
         [TestMethod]
         public void SelectMarvelQuery2()
         {
-            GraphViewConnection connection = new GraphViewConnection("https://graphview.documents.azure.com:443/",
+            connection connection = new connection("https://graphview.documents.azure.com:443/",
                 "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
                 "GroupMatch", "MarvelTest");
             GraphViewCommand graph = new GraphViewCommand(connection);
@@ -94,7 +98,7 @@ namespace GraphViewUnitTest
         [TestMethod]
         public void SelectMarvelQuery2b()
         {
-            GraphViewConnection connection = new GraphViewConnection("https://graphview.documents.azure.com:443/",
+            connection connection = new connection("https://graphview.documents.azure.com:443/",
                 "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
                 "GroupMatch", "MarvelTest");
             GraphViewCommand graph = new GraphViewCommand(connection);
@@ -111,7 +115,7 @@ namespace GraphViewUnitTest
         [TestMethod]
         public void SelectMarvelQuery3()
         {
-            GraphViewConnection connection = new GraphViewConnection("https://graphview.documents.azure.com:443/",
+            connection connection = new connection("https://graphview.documents.azure.com:443/",
                 "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
                 "GroupMatch", "MarvelTest");
             GraphViewCommand graph = new GraphViewCommand(connection);
@@ -126,7 +130,7 @@ namespace GraphViewUnitTest
         [TestMethod]
         public void SelectMarvelQuery3b()
         {
-            GraphViewConnection connection = new GraphViewConnection("https://graphview.documents.azure.com:443/",
+            connection connection = new connection("https://graphview.documents.azure.com:443/",
                 "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
                 "GroupMatch", "MarvelTest");
             GraphViewCommand graph = new GraphViewCommand(connection);
@@ -142,7 +146,7 @@ namespace GraphViewUnitTest
         [TestMethod]
         public void SelectMarvelQuery4()
         {
-            GraphViewConnection connection = new GraphViewConnection("https://graphview.documents.azure.com:443/",
+            connection connection = new connection("https://graphview.documents.azure.com:443/",
                 "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
                 "GroupMatch", "MarvelTest");
             GraphViewCommand graph = new GraphViewCommand(connection);
@@ -157,7 +161,7 @@ namespace GraphViewUnitTest
         [TestMethod]
         public void SelectMarvelQuery4b()
         {
-            GraphViewConnection connection = new GraphViewConnection("https://graphview.documents.azure.com:443/",
+            connection connection = new connection("https://graphview.documents.azure.com:443/",
                 "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
                 "GroupMatch", "MarvelTest");
             GraphViewCommand graph = new GraphViewCommand(connection);
@@ -176,7 +180,7 @@ namespace GraphViewUnitTest
         [TestMethod]
         public void SelectMarvelQueryNativeAPI1()
         {
-            GraphViewConnection connection = new GraphViewConnection("https://graphview.documents.azure.com:443/",
+            connection connection = new connection("https://graphview.documents.azure.com:443/",
                 "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
                 "GroupMatch", "MarvelTest");
             GraphViewCommand graph = new GraphViewCommand(connection);
@@ -197,7 +201,7 @@ namespace GraphViewUnitTest
         [TestMethod]
         public void SelectMarvelQueryNativeAPI2()
         {
-            GraphViewConnection connection = new GraphViewConnection("https://graphview.documents.azure.com:443/",
+            connection connection = new connection("https://graphview.documents.azure.com:443/",
                 "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
                 "GroupMatch", "MarvelTest");
             GraphViewCommand graph = new GraphViewCommand(connection);
@@ -223,7 +227,7 @@ namespace GraphViewUnitTest
         [TestMethod]
         public void GraphViewMarvelInsertDeleteTest()
         {
-            GraphViewConnection connection = new GraphViewConnection("https://graphview.documents.azure.com:443/",
+            connection connection = new connection("https://graphview.documents.azure.com:443/",
                 "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
                 "GroupMatch", "MarvelTest");
             connection.ResetCollection();
@@ -241,7 +245,7 @@ namespace GraphViewUnitTest
         [TestMethod]
         public void GraphViewMarvelInsertTest2()
         {
-            GraphViewConnection connection = new GraphViewConnection("https://graphview.documents.azure.com:443/",
+            connection connection = new connection("https://graphview.documents.azure.com:443/",
                 "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
                 "GroupMatch", "MarvelTest");
             connection.ResetCollection();
@@ -265,7 +269,7 @@ namespace GraphViewUnitTest
         [TestMethod]
         public void GraphViewMarvelInsertTest()
         {
-            GraphViewConnection connection = new GraphViewConnection("https://graphview.documents.azure.com:443/",
+            connection connection = new connection("https://graphview.documents.azure.com:443/",
                 "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
                 "GroupMatch", "TransactionTest");
             connection.ResetCollection();
@@ -275,10 +279,45 @@ namespace GraphViewUnitTest
             graph.g().AddV("comicbook" + DateTime.Now).Property("name", "AVF 4").Next();
             graph.g().V().Has("name", "VENUS II").AddE("appeared").To(graph.g().V().Has("name", "AVF 4")).Next();
         }
+        //[TestMethod]
+        //public async void storedProcedureTest()
+        //{
+        //    connection connection = new connection("https://graphview.documents.azure.com:443/",
+        //       "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
+        //       "GroupMatch", "TransactionTest");
+        //    var markAntiquesSproc = new StoredProcedure
+        //    {
+        //        Id = "ValidateDocumentAge",
+        //        Body = @"
+        //    function(docToCreate, antiqueYear) {
+        //        var collection = getContext().getCollection();    
+        //        var response = getContext().getResponse();    
+
+        //        if(docToCreate.Year != undefined && docToCreate.Year < antiqueYear){
+        //            docToCreate.antique = true;
+        //        }
+
+        //        collection.createDocument(collection.getSelfLink(), docToCreate, {}, 
+        //            function(err, docCreated, options) { 
+        //                if(err) throw new Error('Error while creating document: ' + err.message);                              
+        //                if(options.maxCollectionSizeInMb == 0) throw 'max collection size not found'; 
+        //                response.setBody(docCreated);
+        //        });
+        // }"
+        //    };
+
+        //    // register stored procedure
+        //    StoredProcedure createdStoredProcedure = await connection.DocDBclient.CreateStoredProcedureAsync(UriFactory.CreateDocumentCollectionUri("db", "coll"), markAntiquesSproc);
+        //    dynamic document = new Document() { Id = "Borges_112" };
+        //    //document.Title = "Aleph";
+        //    //document.Year = 1949;
+
+        //    // execute stored procedure
+        //    Document createdDocument = await connection.DocDBclient.ExecuteStoredProcedureAsync<Document>(UriFactory.CreateStoredProcedureUri("db", "coll", "sproc"), document, 1920);
+        //}
         [TestMethod]
-        public void storedProcedureTest()
+        public void storedProcedureUpdateDocTest()
         {
-     
             // (1) create procedure
             string collectionLink = "dbs/" + "GroupMatch" + "/colls/" + "TransactionTest";
 
@@ -289,39 +328,43 @@ namespace GraphViewUnitTest
             const int maxJsonSize = 50000;
 
             // Prepare the BulkInsert stored procedure
-            string jsBody = File.ReadAllText(@"..\..\..\GraphView\GraphViewExecutionRuntime\transaction\update.js");
+            string jsBody = File.ReadAllText(@"..\..\..\GraphView\GraphViewExecutionRuntime\transaction\update2.js");
             StoredProcedure sproc = new StoredProcedure
             {
-                Id = "UpdateEdge",
+                Id = "UpdateEdge" + DateTime.Now.ToLongTimeString(),
                 Body = jsBody,
             };
 
-            GraphViewConnection connection = new GraphViewConnection("https://graphview.documents.azure.com:443/",
+            connection connection = new connection("https://graphview.documents.azure.com:443/",
                 "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
                 "GroupMatch", "TransactionTest");
             var bulkInsertCommand = new GraphViewCommand(connection);
             //Create the BulkInsert stored procedure if it doesn't exist
+            //var spTask = connection.DocDBclient.CreateStoredProcedureAsync(collectionLink, sproc);
+
             Task<StoredProcedure> spTask = bulkInsertCommand.TryCreatedStoredProcedureAsync(collectionLink, sproc);
             spTask.Wait();
             sproc = spTask.Result;
             var sprocLink = sproc.SelfLink;
             // (2) Update source vertex
-            var srcId = "b9b79382-45d2-4a24-b495-0a89809a3585";
+            var srcId = "69f53465-ac7d-45d4-bddb-031dcea0b0c8";
             //var edgeObject = "\"test Edge\"";
             //var json_arr_src = generateInsertEdgeObjectString(srcId, edgeObject);
             //var objs_src = new dynamic[] { Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic[]>(json_arr_src) };
             // Execute the batch
             var id = srcId;
             var jsonDocArr = new StringBuilder();
-            jsonDocArr.Append("{\"$addToSet\": { \"_edge\":  ");
-            jsonDocArr.Append("{\"testEdge\"}");
-            jsonDocArr.Append("}");
-
-            var array = new dynamic[] { id, jsonDocArr };
-
-            var result = connection.DocDBclient.ExecuteStoredProcedureAsync<JObject>(sprocLink, array);
-
+            //jsonDocArr.Append("{\"$push\": { \"_edge\":  ");
+            //jsonDocArr.Append("{\"testEdge\"}");
+            //jsonDocArr.Append("}");
+            jsonDocArr.Append("{$inc:{\"_nextEdgeOffset\":1}}");
+            var objs_src = new dynamic[] { JsonConvert.DeserializeObject<dynamic>(jsonDocArr.ToString()) };
+            var array = new dynamic[] { id, objs_src[0]};
+            //var array = new dynamic[] { };
+            Task<StoredProcedureResponse<JObject>> result= connection.DocDBclient.ExecuteStoredProcedureAsync<JObject>(sprocLink, array);
             result.Wait();
+            //result.RunSynchronously();
+            Console.WriteLine("Finish the StoredProcedure " + result.Result.Response);
             //Task<int> insertTask_src = bulkInsertCommand.BulkInsertAsync(sprocLink, array);
             //insertTask_src.Wait();
         }

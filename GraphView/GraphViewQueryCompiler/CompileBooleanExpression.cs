@@ -9,7 +9,7 @@ namespace GraphView
 {
     public partial class WBooleanExpression
     {
-        internal virtual BooleanFunction CompileToFunction(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal virtual BooleanFunction CompileToFunction(QueryCompilationContext context, connection dbConnection)
         {
             return null;
         }
@@ -17,7 +17,7 @@ namespace GraphView
 
     public partial class WBooleanBinaryExpression
     {
-        internal override BooleanFunction CompileToFunction(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override BooleanFunction CompileToFunction(QueryCompilationContext context, connection dbConnection)
         {
             BooleanFunction bf1 = FirstExpr.CompileToFunction(context, dbConnection);
             BooleanFunction bf2 = SecondExpr.CompileToFunction(context, dbConnection);
@@ -35,7 +35,7 @@ namespace GraphView
 
     public partial class WBooleanComparisonExpression
     {
-        internal override BooleanFunction CompileToFunction(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override BooleanFunction CompileToFunction(QueryCompilationContext context, connection dbConnection)
         {
             ScalarFunction f1 = FirstExpr.CompileToFunction(context, dbConnection);
             ScalarFunction f2 = SecondExpr.CompileToFunction(context, dbConnection);
@@ -46,7 +46,7 @@ namespace GraphView
 
     public partial class WBooleanNotExpression
     {
-        internal override BooleanFunction CompileToFunction(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override BooleanFunction CompileToFunction(QueryCompilationContext context, connection dbConnection)
         {
             return new BooleanNotFunction(Expression.CompileToFunction(context, dbConnection));
         }
@@ -54,7 +54,7 @@ namespace GraphView
 
     public partial class WBooleanParenthesisExpression
     {
-        internal override BooleanFunction CompileToFunction(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override BooleanFunction CompileToFunction(QueryCompilationContext context, connection dbConnection)
         {
             return Expression.CompileToFunction(context, dbConnection);
         }
@@ -62,7 +62,7 @@ namespace GraphView
 
     public partial class WExistsPredicate
     {
-        internal override BooleanFunction CompileToFunction(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override BooleanFunction CompileToFunction(QueryCompilationContext context, connection dbConnection)
         {
             QueryCompilationContext subContext = new QueryCompilationContext(context);
             GraphViewExecutionOperator subQueryOp = Subquery.SubQueryExpr.Compile(subContext, dbConnection);

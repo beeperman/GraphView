@@ -17,7 +17,7 @@ namespace GraphViewUnitTest
         [TestMethod]
         public void Test1CreateApplication()
         {
-            GraphViewConnection connection = new GraphViewConnection("https://graphview.documents.azure.com:443/",
+            connection connection = new connection("https://graphview.documents.azure.com:443/",
                 "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
                 "GroupMatch", "GremlinFunctionalTestSuite");
             //connection.ResetCollection();
@@ -57,7 +57,7 @@ namespace GraphViewUnitTest
         [TestMethod]
         public void Test2ImportModels()
         {
-            GraphViewConnection connection = new GraphViewConnection("https://graphview.documents.azure.com:443/",
+            connection connection = new connection("https://graphview.documents.azure.com:443/",
                 "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
                 "GroupMatch", "GremlinFunctionalTestSuite");
             //connection.ResetCollection();
@@ -527,7 +527,7 @@ namespace GraphViewUnitTest
         [TestMethod]
         public void Test3ImportInstances()
         {
-            GraphViewConnection connection = new GraphViewConnection("https://graphview.documents.azure.com:443/",
+            connection connection = new connection("https://graphview.documents.azure.com:443/",
                 "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
                 "GroupMatch", "GremlinFunctionalTestSuite");
             //connection.ResetCollection();
@@ -1478,7 +1478,7 @@ namespace GraphViewUnitTest
         [TestMethod]
         public void Test8UpdateProductModel_AddRefProperty()
         {
-            GraphViewConnection connection = new GraphViewConnection("https://graphview.documents.azure.com:443/",
+            connection connection = new connection("https://graphview.documents.azure.com:443/",
                 "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
                 "GroupMatch", "GremlinFunctionalTestSuite");
             //connection.ResetCollection();

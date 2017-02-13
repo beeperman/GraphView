@@ -1,67 +1,14 @@
-/**
- * A DocumentDB stored procedure that updates a document by id, using a similar syntax to MongoDB's update operator.<br/>
- * <br/>
- * The following operations are supported:<br/>
- * <br/>
- * Field Operators:<br/>
- * <ul>
- *   <li>$inc - Increments the value of the field by the specified amount.</li>
- *   <li>$mul - Multiplies the value of the field by the specified amount.</li>
- *   <li>$rename - Renames a field.</li>
- *   <li>$set - Sets the value of a field in a document.</li>
- *   <li>$unset - Removes the specified field from a document.</li>
- *   <li>$min - Only updates the field if the specified value is less than the existing field value.</li>
- *   <li>$max - Only updates the field if the specified value is greater than the existing field value.</li>
- *   <li>$currentDate - Sets the value of a field to current date as a Unix Epoch.</li>
- * </ul>
- * <br/>
- * Array Operators:<br/>
- * <ul>
- *   <li>$addToSet - Adds elements to an array only if they do not already exist in the set.</li>
- *   <li>$pop - Removes the first or last item of an array.</li>
- *   <li>$push - Adds an item to an array.</li>
- * </ul>
- * <br/>
- * Note: Performing multiple operations on the same field may yield unexpected results.<br/>
- *
- * @example <caption>Increment the property "counter" by 1 in the document where id = "foo".</caption>
- * updateSproc("foo", {$inc: {counter: 1}});
- *
- * @example <caption>Set the property "message" to "Hello World" and the "messageDate" to the current date in the document where id = "bar".</caption>
- * updateSproc("bar", {$set: {message: "Hello World"}, $currentDate: {messageDate: ""}});
- *
- * @function
- * @param {string} id - The id for your document.
- * @param {object} update - the modifications to apply.
- * @returns {object} the updated document.
- */
-// Inc the _nextEdgeOffset
-// ["docId", "update field"]
-// ["3f839651-e52a-4c66-b22c-2b9eed93e023", {"$inc": {"_nextEdgeOffset": 1}} ]
-// Update the edge field, this could resolve the graphview update doc example code and syntax then translate to js code and resovle.
-// Need obey the graphView semantics.
-// addToSet function
-//["3eb1b75d-071d-4098-8821-14e41a4e81b5", {
-//    "$addToSet": {
-//        "_edge": {
-//            "_ID": 0,
-//            "_reverse_ID": 0,
-//            "_sink": "b44bdaff-2773-454f-a719-3f2f80d00c6c",
-//            "label": "appeared",
-//            "_sinkLabel": "comicbook"
-//        }
-//    }
-//}]
-//test
+
 function updateSproc(id, update) {
     var collection = getContext().getCollection();
     var collectionLink = collection.getSelfLink();
     var response = getContext().getResponse();
-
+    //response.setBody(id);
+    update = update;
     // Validate input.
     if (!id) throw new Error("The id is undefined or null.");
     if (!update) throw new Error("The update is undefined or null.");
-
+    //throw new Error("Document not found.");
     tryQueryAndUpdate();
 
     // Recursively queries for a document by id w/ support for continuation tokens.
@@ -80,6 +27,7 @@ function updateSproc(id, update) {
             } else if (responseOptions.continuation) {
                 // Else if the query came back empty, but with a continuation token; repeat the query w/ the token.
                 // It is highly unlikely for this to happen when performing a query by id; but is included to serve as an example for larger queries.
+
                 tryQueryAndUpdate(responseOptions.continuation);
             } else {
                 // Else a document with the given id does not exist..
@@ -96,12 +44,12 @@ function updateSproc(id, update) {
 
     // Updates the supplied document according to the update object passed in to the sproc.
     function tryUpdate(document) {
-
         // DocumentDB supports optimistic concurrency control via HTTP ETag.
         var requestOptions = {etag: document._etag};
+        console.log("execute the stored procedure");
 
         // Update operators.
-        //inc(document, update);
+        inc(document, update);
         //mul(document, update);
         //rename(document, update);
         //set(document, update);
@@ -109,16 +57,20 @@ function updateSproc(id, update) {
         //min(document, update);
        // max(document, update);
        // currentDate(document, update);
-        addToSet(document, update);
+       // addToSet(document, update);
        // pop(document, update);
-       // push(document, update);
+        //push(document, update);
 
         // Update the document.
+        //throw new Error(document);
+
         var isAccepted = collection.replaceDocument(document._self, document, requestOptions, function (err, updatedDocument, responseOptions) {
             if (err) throw err;
 
             // If we have successfully updated the document - return it in the response body.
             response.setBody(updatedDocument);
+            //response.setBody(update);
+
         });
 
         // If we hit execution bounds - throw an exception.
@@ -131,19 +83,26 @@ function updateSproc(id, update) {
     // The $inc operator increments the value of a field by a specified amount.
     function inc(document, update) {
         var fields, i;
+        //throw new Error(update.m_StringValue.$inc)
 
         if (update.$inc) {
+            //throw new Error("Enter")
+
             fields = Object.keys(update.$inc);
             for (i = 0; i < fields.length; i++) {
                 if (isNaN(update.$inc[fields[i]])) {
                     // Validate the field; throw an exception if it is not a number (can't increment by NaN).
-                    throw new Error("Bad $inc parameter - value must be a number")
+                    throw new Error("Bad $inc parameter - 1value must be a number")
                 } else if (document[fields[i]]) {
                     // If the field exists, increment it by the given amount.
                     document[fields[i]] += update.$inc[fields[i]];
+
+                    //throw new Error("Bad $inc parameter - 2value must be a number")
                 } else {
                     // Otherwise set the field to the given amount.
                     document[fields[i]] = update.$inc[fields[i]];
+
+                    //throw new Error("Bad $inc parameter - 3value must be a number")
                 }
             }
         }

@@ -20,14 +20,14 @@ namespace GraphView.GremlinTranslation
         //    GremlinTranslationOpList = new List<GremlinTranslationOperator>();
         //}
 
-        public GraphTraversal2(GraphViewConnection pConnection)
+        public GraphTraversal2(connection pConnection)
         {
             GremlinTranslationOpList = new List<GremlinTranslationOperator>();
         }
 
         public void next()
         {
-            GraphViewConnection connection = new GraphViewConnection("https://graphview.documents.azure.com:443/",
+            connection connection = new connection("https://graphview.documents.azure.com:443/",
                 "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
                 "GroupMatch", "MarvelTest");
             //var sqlFragment = LastGremlinTranslationOp.ToWSqlFragment();

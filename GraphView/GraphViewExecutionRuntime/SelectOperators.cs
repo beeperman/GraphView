@@ -78,9 +78,9 @@ namespace GraphView
         private Queue<RawRecord> outputBuffer;
         private int outputBufferSize;
         private JsonQuery vertexQuery;
-        private GraphViewConnection connection;
+        private connection connection;
 
-        public FetchNodeOperator2(GraphViewConnection connection, JsonQuery vertexQuery, int outputBufferSize = 1000)
+        public FetchNodeOperator2(connection connection, JsonQuery vertexQuery, int outputBufferSize = 1000)
         {
             Open();
             this.connection = connection;
@@ -145,7 +145,7 @@ namespace GraphView
         private int batchSize = 100;
         private int inClauseLimit = 200;
         private Queue<RawRecord> outputBuffer;
-        private GraphViewConnection connection;
+        private connection connection;
         private GraphViewExecutionOperator inputOp;
         
         // The index of the adjacency list in the record from which the traversal starts
@@ -164,7 +164,7 @@ namespace GraphView
 
         public TraversalOperator2(
             GraphViewExecutionOperator inputOp,
-            GraphViewConnection connection,
+            connection connection,
             int sinkIndex,
             JsonQuery sinkVertexQuery,
             List<Tuple<int, int>> matchingIndexes,
@@ -357,7 +357,7 @@ namespace GraphView
         private int batchSize = 100;
         private int inClauseLimit = 200;
         private Queue<RawRecord> outputBuffer;
-        private GraphViewConnection connection;
+        private connection connection;
         private GraphViewExecutionOperator inputOp;
 
 
@@ -370,7 +370,7 @@ namespace GraphView
 
         public BothVOperator(
             GraphViewExecutionOperator inputOp,
-            GraphViewConnection connection,
+            connection connection,
             List<int> sinkIndexes,
             JsonQuery sinkVertexQuery,
             int outputBufferSize = 1000)

@@ -87,7 +87,7 @@ namespace GraphView
         }
 
         private GraphTraversalIterator it;
-        public GraphViewConnection Connection { get; set; }
+        public connection Connection { get; set; }
         internal List<GremlinTranslationOperator> GremlinTranslationOpList { get; set; }
         internal GremlinTranslationOperator LastGremlinTranslationOp { set; get; }
 
@@ -98,14 +98,14 @@ namespace GraphView
             GremlinTranslationOpList = new List<GremlinTranslationOperator>();
         }
 
-        public GraphTraversal2(GraphViewConnection pConnection)
+        public GraphTraversal2(connection pConnection)
         {
             GremlinTranslationOpList = new List<GremlinTranslationOperator>();
             Connection = pConnection;
             outputFormat = OutputFormat.Regular;
         }
 
-        public GraphTraversal2(GraphViewConnection connection, OutputFormat outputFormat)
+        public GraphTraversal2(connection connection, OutputFormat outputFormat)
         {
             GremlinTranslationOpList = new List<GremlinTranslationOperator>();
             Connection = connection;

@@ -7,7 +7,7 @@ namespace GraphView
 {
     partial class WSelectQueryBlock
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             List<WTableReferenceWithAlias> nonVertexTableReferences = null;
             MatchGraph graphPattern = ConstructGraph2(context.TableReferences, out nonVertexTableReferences);
@@ -726,7 +726,7 @@ namespace GraphView
         /// <param name="tableReferences"></param>
         /// <param name="remainingPredicatesAndTheirTableReferences"></param>
         /// <param name="childrenProcessor"></param>
-        private void CheckRemainingPredicatesAndAppendFilterOp(QueryCompilationContext context, GraphViewConnection connection,
+        private void CheckRemainingPredicatesAndAppendFilterOp(QueryCompilationContext context, connection connection,
             HashSet<string> tableReferences,
             List<Tuple<WBooleanExpression, HashSet<string>>> remainingPredicatesAndTheirTableReferences,
             List<GraphViewExecutionOperator> childrenProcessor)
@@ -755,7 +755,7 @@ namespace GraphView
         /// <param name="edges"></param>
         /// <param name="predicatesAccessedTableReferences"></param>
         /// <param name="isForwardingEdges"></param>
-        private void CrossApplyEdges(GraphViewConnection connection, QueryCompilationContext context, 
+        private void CrossApplyEdges(connection connection, QueryCompilationContext context, 
             List<GraphViewExecutionOperator> operatorChain, IList<MatchEdge> edges, 
             List<Tuple<WBooleanExpression, HashSet<string>>> predicatesAccessedTableReferences,
             bool isForwardingEdges = false)
@@ -882,7 +882,7 @@ namespace GraphView
             context.CurrentExecutionOperator = operatorChain.Last();
         }
 
-        private GraphViewExecutionOperator ConstructOperator2(GraphViewConnection connection, MatchGraph graphPattern,
+        private GraphViewExecutionOperator ConstructOperator2(connection connection, MatchGraph graphPattern,
             QueryCompilationContext context, List<WTableReferenceWithAlias> nonVertexTableReferences,
             List<Tuple<WBooleanExpression, HashSet<string>>> predicatesAccessedTableReferences)
         {
@@ -1321,7 +1321,7 @@ namespace GraphView
 
     partial class WSqlBatch
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             QueryCompilationContext priorContext = new QueryCompilationContext();
             GraphViewExecutionOperator op = null;
@@ -1340,7 +1340,7 @@ namespace GraphView
 
     partial class WSetVariableStatement
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             if (_expression.GetType() != typeof(WScalarSubquery))
             {
@@ -1359,7 +1359,7 @@ namespace GraphView
 
     partial class WOrderByClause
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
 
             var orderByElements = new List<Tuple<int, SortOrder>>();
@@ -1383,7 +1383,7 @@ namespace GraphView
 
     partial class WUnionTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             ContainerOperator containerOp = new ContainerOperator(context.CurrentExecutionOperator);
 
@@ -1441,7 +1441,7 @@ namespace GraphView
 
     partial class WCoalesceTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             CoalesceOperator2 coalesceOp = new CoalesceOperator2(context.CurrentExecutionOperator);
 
@@ -1493,7 +1493,7 @@ namespace GraphView
 
     partial class WOptionalTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             WSelectQueryBlock contextSelect, optionalSelect;
             Split(out contextSelect, out optionalSelect);
@@ -1558,7 +1558,7 @@ namespace GraphView
 
     partial class WLocalTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             WScalarSubquery localSubquery = Parameters[0] as WScalarSubquery;
             if (localSubquery == null)
@@ -1599,7 +1599,7 @@ namespace GraphView
 
     partial class WFlatMapTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             WScalarSubquery flatMapSubquery = Parameters[0] as WScalarSubquery;
             if (flatMapSubquery == null)
@@ -1640,7 +1640,7 @@ namespace GraphView
 
     partial class WBoundOutNodeTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             var sinkParameter = Parameters[0] as WColumnReferenceExpression;
             var sinkIndex = context.LocateColumnReference(sinkParameter);
@@ -1692,7 +1692,7 @@ namespace GraphView
 
     partial class WBoundBothNodeTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             var firstSinkParameter = Parameters[0] as WColumnReferenceExpression;
             var secondSinkParameter = Parameters[1] as WColumnReferenceExpression;
@@ -1750,7 +1750,7 @@ namespace GraphView
     partial class WBoundOutEdgeTableReference
     {
         internal override GraphViewExecutionOperator Compile(QueryCompilationContext context,
-            GraphViewConnection dbConnection)
+            connection dbConnection)
         {
             var startVertexIdParameter = Parameters[0] as WColumnReferenceExpression;
             var adjListParameter = Parameters[1] as WColumnReferenceExpression;
@@ -1791,7 +1791,7 @@ namespace GraphView
 
     partial class WBoundInEdgeTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             var startVertexIdParameter = Parameters[0] as WColumnReferenceExpression;
             var revAdjListParameter = Parameters[1] as WColumnReferenceExpression;
@@ -1832,7 +1832,7 @@ namespace GraphView
 
     partial class WBoundBothEdgeTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             var startVertexIdParameter = Parameters[0] as WColumnReferenceExpression;
             var adjListParameter = Parameters[1] as WColumnReferenceExpression;
@@ -1875,7 +1875,7 @@ namespace GraphView
 
     partial class WValuesTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             List<int> valuesIdxList = new List<int>();
             int allValuesIndex = -1;
@@ -1903,7 +1903,7 @@ namespace GraphView
 
     partial class WPropertiesTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             List<Tuple<string, int>> propertiesList = new List<Tuple<string, int>>();
             int allPropertyIndex = -1;
@@ -1936,7 +1936,7 @@ namespace GraphView
 
     partial class WDedupTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             var targetField = Parameters[0] as WColumnReferenceExpression;
             if (targetField == null)
@@ -1952,7 +1952,7 @@ namespace GraphView
 
     partial class WConstantReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             List<string> constantValues = new List<string>();
             foreach (var parameter in Parameters)
@@ -1973,7 +1973,7 @@ namespace GraphView
 
     partial class WProjectTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             var projectByOp = new ProjectByOperator(context.CurrentExecutionOperator);
             for (var i = 0; i < Parameters.Count; i += 2)
@@ -2022,7 +2022,7 @@ namespace GraphView
 
     partial class WRepeatTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             WSelectQueryBlock contextSelect, repeatSelect;
             Split(out contextSelect, out repeatSelect);
@@ -2104,7 +2104,7 @@ namespace GraphView
 
     partial class WUnfoldTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             var unfoldColumns = new List<string>();
             for (var i = 1; i < Parameters.Count; i++)
@@ -2132,7 +2132,7 @@ namespace GraphView
 
     partial class WPathTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             //<field index, whether this field is a path list needed to be unfolded>
             var pathFieldList = new List<Tuple<int, bool>>();
@@ -2156,7 +2156,7 @@ namespace GraphView
 
     partial class WInjectTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             List<GraphViewExecutionOperator> subQueriesOps = new List<GraphViewExecutionOperator>();
             foreach (var expression in Parameters)
@@ -2185,7 +2185,7 @@ namespace GraphView
 
     partial class WStoreTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             var targetFieldParameter = Parameters[0] as WColumnReferenceExpression;
             var targetFieldIndex = context.LocateColumnReference(targetFieldParameter);
@@ -2201,7 +2201,7 @@ namespace GraphView
 
     partial class WBarrierTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             var barrierOp = new BarrierOperator(context.CurrentExecutionOperator);
             context.CurrentExecutionOperator = barrierOp;
@@ -2212,7 +2212,7 @@ namespace GraphView
 
     partial class WMapTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             WScalarSubquery mapSubquery = Parameters[0] as WScalarSubquery;
             if (mapSubquery == null)
@@ -2253,7 +2253,7 @@ namespace GraphView
 
     partial class WSideEffectTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             WScalarSubquery sideEffectSubquery = Parameters[0] as WScalarSubquery;
             if (sideEffectSubquery == null)
@@ -2278,7 +2278,7 @@ namespace GraphView
 
     partial class WKeyTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             WColumnReferenceExpression propertyField = Parameters[0] as WColumnReferenceExpression;
 
@@ -2293,7 +2293,7 @@ namespace GraphView
 
     partial class WValueTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             WColumnReferenceExpression propertyField = Parameters[0] as WColumnReferenceExpression;
 
@@ -2308,7 +2308,7 @@ namespace GraphView
 
     partial class WGroupTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             var groupKeySubQuery = Parameters[1] as WScalarSubquery;
             var aggregateSubQuery = Parameters[2] as WScalarSubquery;
@@ -2350,7 +2350,7 @@ namespace GraphView
 
     partial class WQueryDerivedTable
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             WSelectQueryBlock derivedSelectQueryBlock = QueryExpr as WSelectQueryBlock;
             if (derivedSelectQueryBlock == null)

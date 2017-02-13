@@ -9,7 +9,7 @@ namespace GraphView
 {
     partial class WAddVTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             List<string> projectedField;
             var nodeJsonDocument = ConstructNodeJsonDocument(out projectedField);
@@ -33,7 +33,7 @@ namespace GraphView
 
     partial class WAddETableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             List<string> projectedField;
             var edgeJsonDocument = ConstructEdgeJsonDocument(out projectedField);
@@ -69,7 +69,7 @@ namespace GraphView
 
     partial class WDropNodeTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             var nodeIdParameter = Parameters[0] as WColumnReferenceExpression;
             var nodeIdIndex = context.LocateColumnReference(nodeIdParameter);
@@ -83,7 +83,7 @@ namespace GraphView
 
     partial class WDropEdgeTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             var srcIdParameter = Parameters[0] as WColumnReferenceExpression;
             var edgeOffsetParameter = Parameters[1] as WColumnReferenceExpression;
@@ -99,7 +99,7 @@ namespace GraphView
 
     partial class WUpdateNodePropertiesTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             var nodeIdParameter = Parameters[0] as WColumnReferenceExpression;
             var nodeIdIndex = context.LocateColumnReference(nodeIdParameter);
@@ -128,7 +128,7 @@ namespace GraphView
 
     partial class WUpdateEdgePropertiesTableReference
     {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, connection dbConnection)
         {
             var srcIdParameter = Parameters[0] as WColumnReferenceExpression;
             var edgeOffsetParameter = Parameters[1] as WColumnReferenceExpression;

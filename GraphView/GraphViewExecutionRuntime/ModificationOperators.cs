@@ -11,10 +11,10 @@ namespace GraphView
 {
     internal abstract class ModificationBaseOpertaor2 : GraphViewExecutionOperator
     {
-        protected GraphViewConnection Connection;
+        protected connection Connection;
         protected GraphViewExecutionOperator InputOperator;
 
-        protected ModificationBaseOpertaor2(GraphViewExecutionOperator pInputOp, GraphViewConnection pConnection)
+        protected ModificationBaseOpertaor2(GraphViewExecutionOperator pInputOp, connection pConnection)
         {
             InputOperator = pInputOp;
             Connection = pConnection;
@@ -100,7 +100,7 @@ namespace GraphView
         private Document _createdDocument;
         private List<string> _projectedFieldList; 
 
-        public AddVOperator(GraphViewExecutionOperator pInputOp, GraphViewConnection pConnection, string pJsonDocument, List<string> pProjectedFieldList)
+        public AddVOperator(GraphViewExecutionOperator pInputOp, connection pConnection, string pJsonDocument, List<string> pProjectedFieldList)
             : base(pInputOp, pConnection)
         {
             _jsonDocument = pJsonDocument;
@@ -143,7 +143,7 @@ namespace GraphView
     {
         private int _nodeIdIndex;
 
-        public DropNodeOperator(GraphViewExecutionOperator pInputOp, GraphViewConnection pConnection, int pNodeIdIndex)
+        public DropNodeOperator(GraphViewExecutionOperator pInputOp, connection pConnection, int pNodeIdIndex)
             : base(pInputOp, pConnection)
         {
             _nodeIdIndex = pNodeIdIndex;
@@ -219,7 +219,7 @@ namespace GraphView
         private string _edgeJsonDocument;
         private List<string> _edgeProperties;
 
-        public AddEOperator(GraphViewExecutionOperator pInputOp, GraphViewConnection pConnection, 
+        public AddEOperator(GraphViewExecutionOperator pInputOp, connection pConnection, 
             ScalarFunction pSrcFunction, ScalarFunction pSinkFunction, 
             int otherVTag, string pEdgeJsonDocument, List<string> pProjectedFieldList)
             : base(pInputOp, pConnection)
@@ -363,7 +363,7 @@ namespace GraphView
         private int _srcIdIndex;
         private int _edgeOffsetIndex;
 
-        public DropEdgeOperator(GraphViewExecutionOperator pInputOp, GraphViewConnection pConnection, int pSrcIdIndex, int pEdgeOffsetIndex)
+        public DropEdgeOperator(GraphViewExecutionOperator pInputOp, connection pConnection, int pSrcIdIndex, int pEdgeOffsetIndex)
             : base(pInputOp, pConnection)
         {
             _srcIdIndex = pSrcIdIndex;
@@ -455,7 +455,7 @@ namespace GraphView
         // TODO: Handle <*, null>
         protected List<Tuple<WValueExpression, WValueExpression, int>> PropertiesToBeUpdated;
 
-        protected UpdatePropertiesBaseOperator(GraphViewExecutionOperator pInputOp, GraphViewConnection pConnection,
+        protected UpdatePropertiesBaseOperator(GraphViewExecutionOperator pInputOp, connection pConnection,
             List<Tuple<WValueExpression, WValueExpression, int>> pPropertiesToBeUpdated, UpdatePropertyMode pMode = UpdatePropertyMode.Set)
             : base(pInputOp, pConnection)
         {
@@ -493,7 +493,7 @@ namespace GraphView
     {
         private int _nodeIdIndex;
 
-        public UpdateNodePropertiesOperator(GraphViewExecutionOperator pInputOp, GraphViewConnection pConnection,
+        public UpdateNodePropertiesOperator(GraphViewExecutionOperator pInputOp, connection pConnection,
             int pNodeIndex, List<Tuple<WValueExpression, WValueExpression, int>> pPropertiesList, UpdatePropertyMode pMode = UpdatePropertyMode.Set)
             : base(pInputOp, pConnection, pPropertiesList, pMode)
         {
@@ -550,7 +550,7 @@ namespace GraphView
         private int _srcIdIndex;
         private int _edgeOffsetIndex;
 
-        public UpdateEdgePropertiesOperator(GraphViewExecutionOperator pInputOp, GraphViewConnection pConnection, 
+        public UpdateEdgePropertiesOperator(GraphViewExecutionOperator pInputOp, connection pConnection, 
             int pSrcIdIndex, int pEdgeOffsetIndex, 
             List<Tuple<WValueExpression, WValueExpression, int>> propertiesList, UpdatePropertyMode pMode = UpdatePropertyMode.Set)
             : base(pInputOp, pConnection, propertiesList, pMode)

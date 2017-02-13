@@ -11,17 +11,17 @@ namespace GraphView
 {
     public static class GraphLoaderFactory
     {
-        public static void parseData(string path, GraphViewConnection connection, string collectionName, Boolean resetCollection, int threadNum,
+        public static void parseData(string path, connection connection, string collectionName, Boolean resetCollection, int threadNum,
             Dictionary<string, Dictionary<string, string>> nodePropertiesHashMap, Dictionary<string, Dictionary<string, string>> outEdgePropertiesHashMap, Dictionary<string, Dictionary<string, string>> inEdgePropertiesHashMap)
         {
         }
 
-        public static void loadAzureIOT(string path, GraphViewConnection connection, string collectionName,  Boolean resetCollection, int threadNum)
+        public static void loadAzureIOT(string path, connection connection, string collectionName,  Boolean resetCollection, int threadNum)
         {
          
         }
 
-        public static void parseAndDumpIOTData(string path, GraphViewConnection connection, string collectionName, Boolean resetCollection, int threadNum, string nodeFilePath, string edgeFilePath)
+        public static void parseAndDumpIOTData(string path, connection connection, string collectionName, Boolean resetCollection, int threadNum, string nodeFilePath, string edgeFilePath)
         {
            
         }
@@ -30,14 +30,14 @@ namespace GraphView
     public class DocDBInsertNodeToFileWorkerByNewAPI
     {
         public int threadId;
-        GraphViewConnection connection = null;
+        connection connection = null;
         BoundedBuffer<KeyValuePair<string, Dictionary<string, string>>> inputNodeBuffer = null;
         BoundedBuffer<KeyValuePair<string, Dictionary<string, string>>> inputInEdgeBuffer = null;
         BoundedBuffer<KeyValuePair<string, Dictionary<string, string>>> inputOutEdgeBuffer = null;
         public List<Double> result = null;
         public StreamWriter nodeFile = null;
 
-        public DocDBInsertNodeToFileWorkerByNewAPI(GraphViewConnection _connection,
+        public DocDBInsertNodeToFileWorkerByNewAPI(connection _connection,
             BoundedBuffer<KeyValuePair<string, Dictionary<string, string>>> _inputNodeBuffer,
             BoundedBuffer<KeyValuePair<string, Dictionary<string, string>>> _inputInEdgeBuffer,
             BoundedBuffer<KeyValuePair<string, Dictionary<string, string>>> _inputOutEdgeBuffer)
@@ -62,14 +62,14 @@ namespace GraphView
     {
         public int threadId;
         //GraphViewGremlinParser parser = new GraphViewGremlinParser();
-        GraphViewConnection connection = null;
+        connection connection = null;
         BoundedBuffer<KeyValuePair<string, Dictionary<string, string>>> inputNodeBuffer = null;
         BoundedBuffer<KeyValuePair<string, Dictionary<string, string>>> inputInEdgeBuffer = null;
         BoundedBuffer<KeyValuePair<string, Dictionary<string, string>>> inputOutEdgeBuffer = null;
         public List<Double> result = null;
         public StreamWriter edgeFile = null;
 
-        public DocDBInsertEdgeToFileWorkerByNewAPI(GraphViewConnection _connection,
+        public DocDBInsertEdgeToFileWorkerByNewAPI(connection _connection,
             BoundedBuffer<KeyValuePair<string, Dictionary<string, string>>> _inputNodeBuffer,
             BoundedBuffer<KeyValuePair<string, Dictionary<string, string>>> _inputInEdgeBuffer,
             BoundedBuffer<KeyValuePair<string, Dictionary<string, string>>> _inputOutEdgeBuffer)
@@ -94,13 +94,13 @@ namespace GraphView
     {
         public int threadId;
         //GraphViewGremlinParser parser = new GraphViewGremlinParser();
-        GraphViewConnection connection = null;
+        connection connection = null;
         BoundedBuffer<KeyValuePair<string, Dictionary<string, string>>> inputNodeBuffer = null;
         BoundedBuffer<KeyValuePair<string, Dictionary<string, string>>> inputInEdgeBuffer = null;
         BoundedBuffer<KeyValuePair<string, Dictionary<string, string>>> inputOutEdgeBuffer = null;
         public List<Double> result = null;
 
-        public DocDBInsertNodeWorkerByNewAPI(GraphViewConnection _connection,
+        public DocDBInsertNodeWorkerByNewAPI(connection _connection,
             BoundedBuffer<KeyValuePair<string, Dictionary<string, string>>> _inputNodeBuffer,
             BoundedBuffer<KeyValuePair<string, Dictionary<string, string>>> _inputInEdgeBuffer,
             BoundedBuffer<KeyValuePair<string, Dictionary<string, string>>> _inputOutEdgeBuffer)
@@ -123,12 +123,12 @@ namespace GraphView
     public class DocDBInsertEdgeWorkerByNewAPI
     {
         public int threadId;
-        GraphViewConnection connection = null;
+        connection connection = null;
         BoundedBuffer<KeyValuePair<string, Dictionary<string, string>>> inputNodeBuffer = null;
         BoundedBuffer<KeyValuePair<string, Dictionary<string, string>>> inputInEdgeBuffer = null;
         BoundedBuffer<KeyValuePair<string, Dictionary<string, string>>> inputOutEdgeBuffer = null;
         public List<Double> result = null;
-        public DocDBInsertEdgeWorkerByNewAPI(GraphViewConnection _connection,
+        public DocDBInsertEdgeWorkerByNewAPI(connection _connection,
             BoundedBuffer<KeyValuePair<string, Dictionary<string, string>>> _inputNodeBuffer,
             BoundedBuffer<KeyValuePair<string, Dictionary<string, string>>> _inputInEdgeBuffer,
             BoundedBuffer<KeyValuePair<string, Dictionary<string, string>>> _inputOutEdgeBuffer)
@@ -154,9 +154,9 @@ namespace GraphView
         BoundedBuffer<string> inputStream;
         public int threadId;
         GraphViewGremlinParser parser = new GraphViewGremlinParser();
-        GraphViewConnection connection = null;
+        connection connection = null;
 
-        public DocDBInsertWorker(GraphViewConnection _connection,
+        public DocDBInsertWorker(connection _connection,
             BoundedBuffer<string> _inputStream)
         {
             this.connection = _connection;

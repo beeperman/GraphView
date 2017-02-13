@@ -43,7 +43,7 @@ namespace GraphView
     ///     Connector to a graph database. The class inherits most functions of SqlConnection,
     ///     and provides a number of GraphView-specific functions.
     /// </summary>
-    public partial class GraphViewConnection : IDisposable
+    public partial class connection : IDisposable
     {
         private bool _disposed;
         public DocumentCollection DocDB_Collection;
@@ -67,7 +67,7 @@ namespace GraphView
         /// <param name="docdb_AuthorizationKey">The Key</param>
         /// <param name="docdb_DatabaseID">Database's name</param>
         /// <param name="docdb_CollectionID">Collection's name</param>
-        public GraphViewConnection(string docdb_EndpointUrl, string docdb_AuthorizationKey, string docdb_DatabaseID,
+        public connection(string docdb_EndpointUrl, string docdb_AuthorizationKey, string docdb_DatabaseID,
             string docdb_CollectionID)
         {
             DocDB_Url = docdb_EndpointUrl;

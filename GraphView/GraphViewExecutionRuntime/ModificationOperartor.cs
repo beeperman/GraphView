@@ -11,7 +11,7 @@ namespace GraphView
 {
     internal class DataModificationUtils
     {
-        internal static async Task ReplaceDocument(GraphViewConnection dbConnection, string documentId, string documentString)
+        internal static async Task ReplaceDocument(connection dbConnection, string documentId, string documentString)
         {
             var newDocument = JObject.Parse(documentString);
             await

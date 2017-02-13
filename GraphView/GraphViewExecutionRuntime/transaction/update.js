@@ -52,6 +52,7 @@
 //        }
 //    }
 //}]
+//test
 function updateSproc(id, update) {
     var collection = getContext().getCollection();
     var collectionLink = collection.getSelfLink();
@@ -100,17 +101,17 @@ function updateSproc(id, update) {
         var requestOptions = {etag: document._etag};
 
         // Update operators.
-        inc(document, update);
-        mul(document, update);
-        rename(document, update);
-        set(document, update);
-        unset(document, update);
-        min(document, update);
-        max(document, update);
-        currentDate(document, update);
+        //inc(document, update);
+        //mul(document, update);
+        //rename(document, update);
+        //set(document, update);
+        //unset(document, update);
+        //min(document, update);
+       // max(document, update);
+       // currentDate(document, update);
         addToSet(document, update);
-        pop(document, update);
-        push(document, update);
+       // pop(document, update);
+       // push(document, update);
 
         // Update the document.
         var isAccepted = collection.replaceDocument(document._self, document, requestOptions, function (err, updatedDocument, responseOptions) {

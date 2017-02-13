@@ -194,17 +194,28 @@ namespace GraphView
             sproc = spTask.Result;
             var sprocLink = sproc.SelfLink;
             // (2) Update source vertex
-            var json_arr = generateInsertEdgeObjectString(srcId, edgeObject);
-            var objs = new dynamic[] { JsonConvert.DeserializeObject<dynamic[]>(json_arr) };
+            var json_arr_src = generateInsertEdgeObjectString(srcId, edgeObject);
+            var objs_src = new dynamic[] { JsonConvert.DeserializeObject<dynamic[]>(json_arr_src) };
             // Execute the batch
-            Task<int> insertTask = bulkInsertCommand.BulkInsertAsync(sprocLink, objs[0]);
-            insertTask.Wait();
+            var id_src = srcId;
+            var jsonDocArr_src = new StringBuilder();
+            jsonDocArr_src.Append("{\"$addToSet\": { \"_edge\":  ");
+            jsonDocArr_src.Append(edgeObject.ToString());
+            jsonDocArr_src.Append("}");
+         
+            var array = new dynamic[] {id_src, jsonDocArr_src };
+            var insertTask_src = DocDBclient.ExecuteStoredProcedureAsync<JObject>(sprocLink, array);
+            insertTask_src.Wait();
             // (3) Update des vertex
-            json_arr = generateInsertEdgeObjectString(sinkId, revEdgeObject);
-            objs = new dynamic[] { JsonConvert.DeserializeObject<dynamic>(json_arr) };
+            var id_des = srcId;
+            var jsonDocArr_des = new StringBuilder();
+            jsonDocArr_des.Append("{\"$addToSet\": { \"_edge\":  ");
+            jsonDocArr_des.Append(revEdgeObject.ToString());
+            jsonDocArr_des.Append("}");
+            var array_des = new dynamic[] { id_des, jsonDocArr_des };
             // Execute the batch
-            insertTask = bulkInsertCommand.BulkInsertAsync(sprocLink, objs);
-            insertTask.Wait();
+            var insertTask_des = DocDBclient.ExecuteStoredProcedureAsync<JObject>(sprocLink, array_des);
+            insertTask_des.Wait();
         }
         // new
         public void BulkInsertNodes(List<string> nodes)

@@ -1,7 +1,11 @@
 ﻿using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using GraphView;
-using Microsoft.SqlServer.TransactSql.ScriptDom;
+using System.Text;
+using System.Threading.Tasks;
+using Microsoft.Azure.Documents;
+using System.IO;
+using Newtonsoft.Json.Linq;
 
 namespace GraphViewUnitTest
 {
@@ -270,6 +274,70 @@ namespace GraphViewUnitTest
             graph.g().AddV("character" + DateTime.Now).Property("name", "VENUS II").Property("weapon", "shield").Next();
             graph.g().AddV("comicbook" + DateTime.Now).Property("name", "AVF 4").Next();
             graph.g().V().Has("name", "VENUS II").AddE("appeared").To(graph.g().V().Has("name", "AVF 4")).Next();
+        }
+        [TestMethod]
+        public void storedProcedureTest()
+        {
+     
+            // (1) create procedure
+            string collectionLink = "dbs/" + "GroupMatch" + "/colls/" + "TransactionTest";
+
+            // Each batch size is determined by maxJsonSize.
+            // maxJsonSize should be so that:
+            // -- it fits into one request (MAX request size is ???).
+            // -- it doesn't cause the script to time out, so the batch number can be minimzed.
+            const int maxJsonSize = 50000;
+
+            // Prepare the BulkInsert stored procedure
+            string jsBody = File.ReadAllText(@"..\..\..\GraphView\GraphViewExecutionRuntime\transaction\update.js");
+            StoredProcedure sproc = new StoredProcedure
+            {
+                Id = "UpdateEdge",
+                Body = jsBody,
+            };
+
+            GraphViewConnection connection = new GraphViewConnection("https://graphview.documents.azure.com:443/",
+                "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
+                "GroupMatch", "TransactionTest");
+            var bulkInsertCommand = new GraphViewCommand(connection);
+            //Create the BulkInsert stored procedure if it doesn't exist
+            Task<StoredProcedure> spTask = bulkInsertCommand.TryCreatedStoredProcedureAsync(collectionLink, sproc);
+            spTask.Wait();
+            sproc = spTask.Result;
+            var sprocLink = sproc.SelfLink;
+            // (2) Update source vertex
+            var srcId = "b9b79382-45d2-4a24-b495-0a89809a3585";
+            //var edgeObject = "\"test Edge\"";
+            //var json_arr_src = generateInsertEdgeObjectString(srcId, edgeObject);
+            //var objs_src = new dynamic[] { Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic[]>(json_arr_src) };
+            // Execute the batch
+            var id = srcId;
+            var jsonDocArr = new StringBuilder();
+            jsonDocArr.Append("{\"$addToSet\": { \"_edge\":  ");
+            jsonDocArr.Append("{\"testEdge\"}");
+            jsonDocArr.Append("}");
+
+            var array = new dynamic[] { id, jsonDocArr };
+
+            var result = connection.DocDBclient.ExecuteStoredProcedureAsync<JObject>(sprocLink, array);
+
+            result.Wait();
+            //Task<int> insertTask_src = bulkInsertCommand.BulkInsertAsync(sprocLink, array);
+            //insertTask_src.Wait();
+        }
+        public string generateInsertEdgeObjectString(string vertexId, string edgeObject)
+        {
+            var jsonDocArr = new StringBuilder();
+            jsonDocArr.Append("[\"" + vertexId + "\", {\"$addToSet\": { \"_edge\":  ");
+            jsonDocArr.Append(edgeObject.ToString());
+            jsonDocArr.Append("}}]");
+            //jsonDocArr.Append(GraphViewJsonCommand.ConstructNodeJsonString(nodes[currentIndex]));
+
+            //while (jsonDocArr.Length < maxJsonSize && ++currentIndex < nodes.Count)
+            //    jsonDocArr.Append(", " + GraphViewJsonCommand.ConstructNodeJsonString(nodes[currentIndex]));
+
+            //jsonDocArr.Append("]");
+            return jsonDocArr.ToString();
         }
     }
 }

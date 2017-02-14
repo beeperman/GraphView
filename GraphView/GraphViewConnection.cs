@@ -194,28 +194,39 @@ namespace GraphView
             sproc = spTask.Result;
             var sprocLink = sproc.SelfLink;
             // (2) Update source vertex
-            var json_arr_src = generateInsertEdgeObjectString(srcId, edgeObject);
-            var objs_src = new dynamic[] { JsonConvert.DeserializeObject<dynamic[]>(json_arr_src) };
             // Execute the batch
             var id_src = srcId;
             var jsonDocArr_src = new StringBuilder();
             jsonDocArr_src.Append("{\"$addToSet\": { \"_edge\":  ");
             jsonDocArr_src.Append(edgeObject.ToString());
-            jsonDocArr_src.Append("}");
-         
-            var array = new dynamic[] {id_src, jsonDocArr_src };
-            var insertTask_src = DocDBclient.ExecuteStoredProcedureAsync<JObject>(sprocLink, array);
+            jsonDocArr_src.Append("}}");
+            var objs_src = new dynamic[] { JsonConvert.DeserializeObject<dynamic>(jsonDocArr_src.ToString()) };
+
+            var incOffset = new StringBuilder();
+            incOffset.Append("{$inc:{\"_nextEdgeOffset\":1}}");
+            var incOffsetDynamic = new dynamic[] { JsonConvert.DeserializeObject<dynamic>(incOffset.ToString()) };
+
+            var array_src = new dynamic[] {id_src, incOffsetDynamic[0], objs_src[0]};
+            var insertTask_src = DocDBclient.ExecuteStoredProcedureAsync<JObject>(sprocLink,  array_src);
             insertTask_src.Wait();
+            //Console.WriteLine(insertTask_src.Result);
             // (3) Update des vertex
-            var id_des = srcId;
+            var id_des = sinkId;
             var jsonDocArr_des = new StringBuilder();
-            jsonDocArr_des.Append("{\"$addToSet\": { \"_edge\":  ");
+            jsonDocArr_des.Append("{\"$addToSet\": { \"_reverse_edge\":  ");
             jsonDocArr_des.Append(revEdgeObject.ToString());
-            jsonDocArr_des.Append("}");
-            var array_des = new dynamic[] { id_des, jsonDocArr_des };
+            jsonDocArr_des.Append("}}");
+            var objs_des = new dynamic[] { JsonConvert.DeserializeObject<dynamic>(jsonDocArr_des.ToString()) };
+
+            var incRevOffset = new StringBuilder();
+            incRevOffset.Append("{$inc:{\"_nextReverseEdgeOffset\":1}}");
+            var incOffsetRevDynamic = new dynamic[] { JsonConvert.DeserializeObject<dynamic>(incRevOffset.ToString()) };
+
+            var array_des = new dynamic[] {id_des, incOffsetRevDynamic[0], objs_des[0] };
             // Execute the batch
             var insertTask_des = DocDBclient.ExecuteStoredProcedureAsync<JObject>(sprocLink, array_des);
             insertTask_des.Wait();
+            //Console.WriteLine(insertTask_des.Result);
         }
         // new
         public void BulkInsertNodes(List<string> nodes)

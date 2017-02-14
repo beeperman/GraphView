@@ -1,10 +1,9 @@
 
-function updateSproc(id, update) {
+function updateSproc(id, update, update2) {
     var collection = getContext().getCollection();
     var collectionLink = collection.getSelfLink();
     var response = getContext().getResponse();
     //response.setBody(id);
-    update = update;
     // Validate input.
     if (!id) throw new Error("The id is undefined or null.");
     if (!update) throw new Error("The update is undefined or null.");
@@ -49,16 +48,23 @@ function updateSproc(id, update) {
         console.log("execute the stored procedure");
 
         // Update operators.
+        // (1) inc the next offset
         inc(document, update);
         //mul(document, update);
         //rename(document, update);
         //set(document, update);
         //unset(document, update);
         //min(document, update);
-       // max(document, update);
-       // currentDate(document, update);
-       // addToSet(document, update);
-       // pop(document, update);
+        // max(document, update);
+        // currentDate(document, update);
+        
+        // (2) update the edge object next offset
+        if (update.$inc._nextEdgeOffset != null) update2.$addToSet._edge._ID = update.$inc._nextEdgeOffset - 1;
+        if (update.$inc._nextReverseEdgeOffset != null) update2.$addToSet._reverse_edge._reverse_ID = update.$inc._nextReverseEdgeOffset - 1;
+
+        // (3) update the vertex edge property
+        addToSet(document, update2);
+        // pop(document, update);
         //push(document, update);
 
         // Update the document.
@@ -96,6 +102,7 @@ function updateSproc(id, update) {
                 } else if (document[fields[i]]) {
                     // If the field exists, increment it by the given amount.
                     document[fields[i]] += update.$inc[fields[i]];
+                    //throw new Error("Bad Flag")
 
                     //throw new Error("Bad $inc parameter - 2value must be a number")
                 } else {

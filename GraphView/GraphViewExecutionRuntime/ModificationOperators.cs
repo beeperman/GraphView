@@ -267,10 +267,10 @@ namespace GraphView
             JObject edgeObject, revEdgeObject;
             var results = InsertEdge(srcJsonDocument, sinkJsonDocument, _edgeJsonDocument, srcId, sinkId, out edgeObject, out revEdgeObject);
             // old
-            Upload(results);
+            //Upload(results);
             // old
             // new Update the edge within a transaction
-            //Connection.InsertEdgeInTransaction(srcId, sinkId, edgeObject, revEdgeObject);
+            Connection.InsertEdgeInTransaction(srcId, sinkId, edgeObject, revEdgeObject);
             // new
             // Update vertex's adjacency list and reverse adjacency list
             var edgeField = FieldObject.GetForwardEdgeField(srcId, srcVertexField["label"]?.ToValue, edgeObject);

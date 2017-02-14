@@ -274,59 +274,24 @@ namespace GraphViewUnitTest
                 "GroupMatch", "TransactionTest");
             connection.ResetCollection();
             GraphViewCommand graph = new GraphViewCommand(connection);
-
-            graph.g().AddV("character" + DateTime.Now).Property("name", "VENUS II").Property("weapon", "shield").Next();
-            graph.g().AddV("comicbook" + DateTime.Now).Property("name", "AVF 4").Next();
+            var t = DateTime.Now;
+            graph.g().AddV("character" + t).Property("name", "VENUS II").Property("weapon", "shield").Next();
+            graph.g().AddV("comicbook" + t).Property("name", "AVF 4").Next();
+            //graph.g().AddV("comicbook2" + t + 1).Property("name", "AVF 4").Next();
             graph.g().V().Has("name", "VENUS II").AddE("appeared").To(graph.g().V().Has("name", "AVF 4")).Next();
+            //graph.g().V().Has("name", "VENUS II").AddE("appeared").To(graph.g().V().Has("name", "AVF 5")).Next();
         }
-        //[TestMethod]
-        //public async void storedProcedureTest()
-        //{
-        //    connection connection = new connection("https://graphview.documents.azure.com:443/",
-        //       "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
-        //       "GroupMatch", "TransactionTest");
-        //    var markAntiquesSproc = new StoredProcedure
-        //    {
-        //        Id = "ValidateDocumentAge",
-        //        Body = @"
-        //    function(docToCreate, antiqueYear) {
-        //        var collection = getContext().getCollection();    
-        //        var response = getContext().getResponse();    
 
-        //        if(docToCreate.Year != undefined && docToCreate.Year < antiqueYear){
-        //            docToCreate.antique = true;
-        //        }
-
-        //        collection.createDocument(collection.getSelfLink(), docToCreate, {}, 
-        //            function(err, docCreated, options) { 
-        //                if(err) throw new Error('Error while creating document: ' + err.message);                              
-        //                if(options.maxCollectionSizeInMb == 0) throw 'max collection size not found'; 
-        //                response.setBody(docCreated);
-        //        });
-        // }"
-        //    };
-
-        //    // register stored procedure
-        //    StoredProcedure createdStoredProcedure = await connection.DocDBclient.CreateStoredProcedureAsync(UriFactory.CreateDocumentCollectionUri("db", "coll"), markAntiquesSproc);
-        //    dynamic document = new Document() { Id = "Borges_112" };
-        //    //document.Title = "Aleph";
-        //    //document.Year = 1949;
-
-        //    // execute stored procedure
-        //    Document createdDocument = await connection.DocDBclient.ExecuteStoredProcedureAsync<Document>(UriFactory.CreateStoredProcedureUri("db", "coll", "sproc"), document, 1920);
-        //}
         [TestMethod]
         public void storedProcedureUpdateDocTest()
         {
             // (1) create procedure
             string collectionLink = "dbs/" + "GroupMatch" + "/colls/" + "TransactionTest";
-
             // Each batch size is determined by maxJsonSize.
             // maxJsonSize should be so that:
             // -- it fits into one request (MAX request size is ???).
             // -- it doesn't cause the script to time out, so the batch number can be minimzed.
             const int maxJsonSize = 50000;
-
             // Prepare the BulkInsert stored procedure
             string jsBody = File.ReadAllText(@"..\..\..\GraphView\GraphViewExecutionRuntime\transaction\update2.js");
             StoredProcedure sproc = new StoredProcedure
@@ -348,25 +313,16 @@ namespace GraphViewUnitTest
             var sprocLink = sproc.SelfLink;
             // (2) Update source vertex
             var srcId = "69f53465-ac7d-45d4-bddb-031dcea0b0c8";
-            //var edgeObject = "\"test Edge\"";
-            //var json_arr_src = generateInsertEdgeObjectString(srcId, edgeObject);
-            //var objs_src = new dynamic[] { Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic[]>(json_arr_src) };
             // Execute the batch
             var id = srcId;
             var jsonDocArr = new StringBuilder();
-            //jsonDocArr.Append("{\"$push\": { \"_edge\":  ");
-            //jsonDocArr.Append("{\"testEdge\"}");
-            //jsonDocArr.Append("}");
             jsonDocArr.Append("{$inc:{\"_nextEdgeOffset\":1}}");
             var objs_src = new dynamic[] { JsonConvert.DeserializeObject<dynamic>(jsonDocArr.ToString()) };
             var array = new dynamic[] { id, objs_src[0]};
-            //var array = new dynamic[] { };
             Task<StoredProcedureResponse<JObject>> result= connection.DocDBclient.ExecuteStoredProcedureAsync<JObject>(sprocLink, array);
             result.Wait();
             //result.RunSynchronously();
             Console.WriteLine("Finish the StoredProcedure " + result.Result.Response);
-            //Task<int> insertTask_src = bulkInsertCommand.BulkInsertAsync(sprocLink, array);
-            //insertTask_src.Wait();
         }
         public string generateInsertEdgeObjectString(string vertexId, string edgeObject)
         {
@@ -374,12 +330,6 @@ namespace GraphViewUnitTest
             jsonDocArr.Append("[\"" + vertexId + "\", {\"$addToSet\": { \"_edge\":  ");
             jsonDocArr.Append(edgeObject.ToString());
             jsonDocArr.Append("}}]");
-            //jsonDocArr.Append(GraphViewJsonCommand.ConstructNodeJsonString(nodes[currentIndex]));
-
-            //while (jsonDocArr.Length < maxJsonSize && ++currentIndex < nodes.Count)
-            //    jsonDocArr.Append(", " + GraphViewJsonCommand.ConstructNodeJsonString(nodes[currentIndex]));
-
-            //jsonDocArr.Append("]");
             return jsonDocArr.ToString();
         }
     }

@@ -135,7 +135,7 @@ namespace GraphView
         private async Task CreateDocument(JObject obj)
         {
             _createdDocument = await Connection.DocDBclient.CreateDocumentAsync("dbs/" + Connection.DocDB_DatabaseId + "/colls/" + Connection.DocDB_CollectionId, obj)
-                .ConfigureAwait(continueOnCapturedContext: false);
+              .ConfigureAwait(continueOnCapturedContext: false);
         }
     }
 

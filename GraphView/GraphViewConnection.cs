@@ -142,32 +142,7 @@ namespace GraphView
                 DocDBclient.DeleteDocumentCollectionAsync(DocDB_Collection.SelfLink)
                     .ConfigureAwait(continueOnCapturedContext: false);
         }
-        // new
-        //["3eb1b75d-071d-4098-8821-14e41a4e81b5", {
-        //    "$addToSet": {
-        //        "_edge": {
-        //            "_ID": 0,
-        //            "_reverse_ID": 0,
-        //            "_sink": "b44bdaff-2773-454f-a719-3f2f80d00c6c",
-        //            "label": "appeared",
-        //            "_sinkLabel": "comicbook"
-        //        }
-        //    }
-        //}]
-        public string generateInsertEdgeObjectString(string vertexId, JObject edgeObject)
-        {
-            var jsonDocArr = new StringBuilder();
-            jsonDocArr.Append("[\"" + vertexId + "\", {\"$addToSet\": { \"_edge\":  ");
-            jsonDocArr.Append(edgeObject.ToString());
-            jsonDocArr.Append("}}]");
-            //jsonDocArr.Append(GraphViewJsonCommand.ConstructNodeJsonString(nodes[currentIndex]));
 
-            //while (jsonDocArr.Length < maxJsonSize && ++currentIndex < nodes.Count)
-            //    jsonDocArr.Append(", " + GraphViewJsonCommand.ConstructNodeJsonString(nodes[currentIndex]));
-
-            //jsonDocArr.Append("]");
-            return jsonDocArr.ToString();
-        }
         public void InsertEdgeInTransaction(string srcId, string sinkId, JObject edgeObject, JObject revEdgeObject)
         {
             // (1) create procedure

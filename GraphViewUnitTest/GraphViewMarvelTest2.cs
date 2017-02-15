@@ -10,6 +10,9 @@ using Microsoft.Azure.Documents.Client;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Converters;
 using Newtonsoft.Json;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace GraphViewUnitTest
 {
@@ -45,7 +48,7 @@ namespace GraphViewUnitTest
                 "g.V().has('weapon','shield').as('character').out('appeared').as('comicbook').select('character').next()";
             cmd.OutputFormat = OutputFormat.GraphSON;
             var results = cmd.Execute();
-
+            
             foreach (var result in results)
             {
                 Console.WriteLine(result);
@@ -272,7 +275,7 @@ namespace GraphViewUnitTest
             connection connection = new connection("https://graphview.documents.azure.com:443/",
                 "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
                 "GroupMatch", "TransactionTest");
-            connection.ResetCollection();
+            //connection.ResetCollection();
             GraphViewCommand graph = new GraphViewCommand(connection);
             var t = DateTime.Now;
             graph.g().AddV("character" + t).Property("name", "VENUS II").Property("weapon", "shield").Next();
@@ -281,7 +284,14 @@ namespace GraphViewUnitTest
             graph.g().V().Has("name", "VENUS II").AddE("appeared").To(graph.g().V().Has("name", "AVF 4")).Next();
             //graph.g().V().Has("name", "VENUS II").AddE("appeared").To(graph.g().V().Has("name", "AVF 5")).Next();
         }
-
+        [TestMethod]
+        public void ResetTheCollection()
+        {
+            connection connection = new connection("https://graphview.documents.azure.com:443/",
+               "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
+               "GroupMatch", "TransactionTest");
+            connection.ResetCollection();
+        }
         [TestMethod]
         public void storedProcedureUpdateDocTest()
         {
@@ -331,6 +341,218 @@ namespace GraphViewUnitTest
             jsonDocArr.Append(edgeObject.ToString());
             jsonDocArr.Append("}}]");
             return jsonDocArr.ToString();
+        }
+        [TestMethod]
+        public void DocumentDBQueryTest()
+        {
+            var collectionName = "MarvelTest";
+            var queryDocID = "5e07961e-3384-4690-94ff-326d3f72e177";
+            connection connection = new connection("https://graphview.documents.azure.com:443/",
+              "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
+              "GroupMatch", collectionName);
+            FeedOptions queryOptions = new FeedOptions { MaxItemCount = -1 };
+            //Fetch the Document to be updated
+            IQueryable<JObject> doc = connection.DocDBclient.CreateDocumentQuery<JObject>(UriFactory.CreateDocumentCollectionUri("GroupMatch", collectionName), 
+                "select * from " + collectionName + " where " + collectionName + ".id = \"" + queryDocID + "\""  , queryOptions);
+
+            //Update some properties on the found resource
+            //Now persist these changes to the database by replacing the original resource
+            
+            foreach(var _doc in doc)
+            {
+                Console.WriteLine(_doc);
+            }
+            Console.WriteLine("Press any key to continue ..." + doc);
+        }
+        [TestMethod] 
+        public void DocumentDBQueryAndUpdateTest()
+        {
+            var collectionName = "MarvelTest";
+            var queryDocID = "5e07961e-3384-4690-94ff-326d3f72e177";
+            connection connection = new connection("https://graphview.documents.azure.com:443/",
+              "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
+              "GroupMatch", collectionName);
+            FeedOptions queryOptions = new FeedOptions { MaxItemCount = -1 };
+            //Fetch the Document to be updated
+            Document doc = connection.DocDBclient.CreateDocumentQuery<Document>(UriFactory.CreateDocumentCollectionUri("GroupMatch", collectionName))
+                                        .Where(r => r.Id == queryDocID)
+                                        .AsEnumerable()
+                                        .SingleOrDefault();
+            
+            //Update some properties on the found resource
+            doc.SetPropertyValue("name", "AVF 4 + 1");
+            //Now persist these changes to the database by replacing the original resource
+            Task<ResourceResponse<Document>> updated = connection.DocDBclient.ReplaceDocumentAsync(doc);
+            updated.Wait();
+            Console.WriteLine("Press any key to continue ...");
+        }
+        [TestMethod]
+        public void DaemonTransactionCheckTest()
+        {
+            var databaseID = "GroupMatch";
+            var collectionName = "MarvelTest";
+            connection connection = new connection("https://graphview.documents.azure.com:443/",
+              "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
+              databaseID, collectionName);
+
+            GraphViewCommand graph = new GraphViewCommand(connection);
+            graph.OutputFormat = OutputFormat.GraphSON;
+            var results = graph.g().V().Next();
+            
+            Dictionary<string, HashSet<string>> edgeHash = new Dictionary<string, HashSet<string>>();
+            Dictionary<string, HashSet<string>> reverseEdgeHash = new Dictionary<string, HashSet<string>>();
+
+            // (1) iterate all the vertex, remember the edge
+            foreach (var result in results)
+            {
+                // get the in edge
+                var doc = JsonConvert.DeserializeObject<JObject>(result);
+                var srcID = doc["id"].ToString();
+                var outE = doc["outE"];
+                if (doc["outE"] != null && outE.First != null)
+                {
+                    var iterOut = outE.First.First.First;
+                    while (iterOut != null)
+                    {
+                        var inVID = iterOut["inV"].ToString();
+                        if (!edgeHash.ContainsKey(srcID))
+                        {
+                            edgeHash.Add(srcID, new HashSet<string>());
+                        }
+                        edgeHash[srcID].Add(inVID);
+                        iterOut = iterOut.Next;
+                    }
+                }
+                // get the out edge
+                var inE = doc["inE"];
+                if (doc["inE"] != null && inE.First != null)
+                {
+                    var iterIn = inE.First.First.First;
+                    while (iterIn != null)
+                    {
+                        var outVID = iterIn["outV"].ToString();
+                        if (!reverseEdgeHash.ContainsKey(srcID))
+                        {
+                            reverseEdgeHash.Add(srcID, new HashSet<string>());
+                        }
+                        reverseEdgeHash[srcID].Add(outVID);
+                        iterIn = iterIn.Next;
+                    }
+                }
+                Console.WriteLine(doc);
+            }
+            Console.WriteLine("Finish the edge parse");
+            // (2) check the edge
+            Dictionary<string, HashSet<string>> needRepairEdgeHash = new Dictionary<string, HashSet<string>>();
+            foreach (var srcEdge in edgeHash)
+            {
+                foreach(var desV in srcEdge.Value)
+                {
+                    if(reverseEdgeHash.ContainsKey(desV) && reverseEdgeHash[desV].Contains(srcEdge.Key))
+                    {
+
+                    } else
+                    {
+                        if(!needRepairEdgeHash.ContainsKey(desV))
+                        {
+                            needRepairEdgeHash.Add(desV, new HashSet<string>());
+                        }
+                        needRepairEdgeHash[desV].Add(srcEdge.Key);
+                    }
+                }
+            }
+            Console.WriteLine("Finish check the edge");
+            // (3) query the doc and updat the edge
+            // create stored procedure
+            // (1) create procedure
+            string collectionLink = "dbs/" + databaseID + "/colls/" + collectionName;
+
+            // Each batch size is determined by maxJsonSize.
+            // maxJsonSize should be so that:
+            // -- it fits into one request (MAX request size is ???).
+            // -- it doesn't cause the script to time out, so the batch number can be minimzed.
+            const int maxJsonSize = 50000;
+
+            // Prepare the BulkInsert stored procedure
+            string jsBody = File.ReadAllText(@"..\..\..\GraphView\GraphViewExecutionRuntime\transaction\update.js");
+            StoredProcedure sproc = new StoredProcedure
+            {
+                Id = "UpdateEdge",
+                Body = jsBody,
+            };
+
+            var bulkInsertCommand = new GraphViewCommand(connection);
+            //Create the BulkInsert stored procedure if it doesn't exist
+            Task<StoredProcedure> spTask = bulkInsertCommand.TryCreatedStoredProcedureAsync(collectionLink, sproc);
+            spTask.Wait();
+            sproc = spTask.Result;
+            var sprocLink = sproc.SelfLink;
+            FeedOptions queryOptions = new FeedOptions { MaxItemCount = -1 };
+            
+            foreach (var desID in needRepairEdgeHash)
+            {
+                foreach(var srcID in desID.Value)
+                {
+                    // Here need to use the documentDB API to get the doc
+                    string querySrcSQL = "SELECT * FROM  " + collectionName + " WHERE " + collectionName + ".id = \"" + srcID + "\"";
+                    string queryDesSQL = "SELECT * FROM  " + collectionName + " WHERE " + collectionName + ".id = \"" + desID.Key + "\"";
+                    // replave the old des doc
+
+                    IQueryable<JObject> srcDoc = connection.DocDBclient.CreateDocumentQuery<JObject>(
+                        UriFactory.CreateDocumentCollectionUri("GroupMatch", collectionName),
+                        querySrcSQL,
+                        queryOptions);
+                    Console.WriteLine("Running direct SQL query...");
+                    JObject _srcDoc = srcDoc.First<JObject>();
+ 
+                    IQueryable<JObject> desDoc = connection.DocDBclient.CreateDocumentQuery<JObject>(
+                      UriFactory.CreateDocumentCollectionUri("GroupMatch", collectionName),
+                      queryDesSQL,
+                      queryOptions);
+                    Console.WriteLine("Running direct SQL query...");
+                    JObject revEdgeObject = null;
+                    JObject _desDoc = desDoc.First<JObject>();
+
+                    if(_srcDoc != null && _desDoc != null)
+                    {
+                        // Create the reverse edge
+                        var _edge = _srcDoc["_edge"].First();
+                        var iter = _edge;
+                        while(iter != null)
+                        {
+                            if(iter["_sink"].ToString() == desID.Key)
+                            {
+
+                            }
+                            iter = iter.Next;
+                        }
+                        // update the edge properties
+                        revEdgeObject = iter.Value<JObject>();
+                        revEdgeObject["_ID"] = 0;
+                        revEdgeObject["_reverse_ID"] = 0;
+                        revEdgeObject["_sink"] = srcID;
+                        revEdgeObject["_sinkLabel"] = _srcDoc["label"];
+
+                        // Update the des doc edge property to fix the edge lose
+                        var id_des = desID;
+                        var jsonDocArr_des = new StringBuilder();
+                        jsonDocArr_des.Append("{\"$addToSet\": { \"_reverse_edge\":  ");
+                        jsonDocArr_des.Append(revEdgeObject.ToString());
+                        jsonDocArr_des.Append("}}");
+                        var objs_des = new dynamic[] { JsonConvert.DeserializeObject<dynamic>(jsonDocArr_des.ToString()) };
+
+                        var incRevOffset = new StringBuilder();
+                        incRevOffset.Append("{$inc:{\"_nextReverseEdgeOffset\":1}}");
+                        var incOffsetRevDynamic = new dynamic[] { JsonConvert.DeserializeObject<dynamic>(incRevOffset.ToString()) };
+
+                        var array_des = new dynamic[] { id_des, incOffsetRevDynamic[0], objs_des[0] };
+                        // Execute the batch
+                        var insertTask_des = connection.DocDBclient.ExecuteStoredProcedureAsync<JObject>(sprocLink, array_des);
+                        insertTask_des.Wait();
+                        // insert the reverse edge to the des vertex doc
+                    }
+                }
+            }
         }
     }
 }

@@ -13,6 +13,7 @@ using Newtonsoft.Json;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 namespace GraphViewUnitTest
 {
@@ -341,6 +342,23 @@ namespace GraphViewUnitTest
             jsonDocArr.Append(edgeObject.ToString());
             jsonDocArr.Append("}}]");
             return jsonDocArr.ToString();
+        }
+        [TestMethod]
+        public void DaemonCheckTheadTest()
+        {
+            Thread thread = new Thread(() => {
+                for (;;)
+                {
+                    Console.WriteLine("Backend is running");
+                    Thread.Sleep(1);
+                }
+            });
+
+            thread.Name = "My new thread";// Asigning name to the thread
+            thread.IsBackground = false;// Made the thread forground
+            thread.Priority = ThreadPriority.AboveNormal;// Setting thread priority
+            thread.Start();// Start D
+            for (int i = 0; i < 1000000000; i ++){ };
         }
         [TestMethod]
         public void DocumentDBQueryTest()

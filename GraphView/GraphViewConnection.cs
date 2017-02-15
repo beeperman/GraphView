@@ -180,8 +180,8 @@ namespace GraphView
             var incOffset = new StringBuilder();
             incOffset.Append("{$inc:{\"_nextEdgeOffset\":1}}");
             var incOffsetDynamic = new dynamic[] { JsonConvert.DeserializeObject<dynamic>(incOffset.ToString()) };
-
             var array_src = new dynamic[] {id_src, incOffsetDynamic[0], objs_src[0]};
+
             var insertTask_src = DocDBclient.ExecuteStoredProcedureAsync<JObject>(sprocLink,  array_src);
             insertTask_src.Wait();
             //Console.WriteLine(insertTask_src.Result);
@@ -196,9 +196,8 @@ namespace GraphView
             var incRevOffset = new StringBuilder();
             incRevOffset.Append("{$inc:{\"_nextReverseEdgeOffset\":1}}");
             var incOffsetRevDynamic = new dynamic[] { JsonConvert.DeserializeObject<dynamic>(incRevOffset.ToString()) };
-
             var array_des = new dynamic[] {id_des, incOffsetRevDynamic[0], objs_des[0] };
-            // Execute the batch
+
             var insertTask_des = DocDBclient.ExecuteStoredProcedureAsync<JObject>(sprocLink, array_des);
             insertTask_des.Wait();
             //Console.WriteLine(insertTask_des.Result);

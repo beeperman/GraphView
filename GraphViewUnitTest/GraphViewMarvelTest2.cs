@@ -404,11 +404,23 @@ namespace GraphViewUnitTest
             updated.Wait();
             Console.WriteLine("Press any key to continue ...");
         }
+        public string RetrieveDocument(connection Connection, string script)
+        {
+            //var script = string.Format("SELECT * FROM Node WHERE Node.id = '{0}'", id);
+            FeedOptions queryOptions = new FeedOptions { MaxItemCount = -1 };
+            List<dynamic> result = Connection.DocDBclient.CreateDocumentQuery(
+                UriFactory.CreateDocumentCollectionUri(Connection.DocDB_DatabaseId, Connection.DocDB_CollectionId),
+                script, queryOptions).ToList();
+
+            if (result.Count == 0) return null;
+
+            return ((JObject)result[0]).ToString();
+        }
         [TestMethod]
         public void DaemonTransactionCheckTest()
         {
             var databaseID = "GroupMatch";
-            var collectionName = "MarvelTest";
+            var collectionName = "TransactionTest";
             connection connection = new connection("https://graphview.documents.azure.com:443/",
               "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
               databaseID, collectionName);
@@ -515,21 +527,13 @@ namespace GraphViewUnitTest
                     string querySrcSQL = "SELECT * FROM  " + collectionName + " WHERE " + collectionName + ".id = \"" + srcID + "\"";
                     string queryDesSQL = "SELECT * FROM  " + collectionName + " WHERE " + collectionName + ".id = \"" + desID.Key + "\"";
                     // replave the old des doc
-
-                    IQueryable<JObject> srcDoc = connection.DocDBclient.CreateDocumentQuery<JObject>(
-                        UriFactory.CreateDocumentCollectionUri("GroupMatch", collectionName),
-                        querySrcSQL,
-                        queryOptions);
-                    Console.WriteLine("Running direct SQL query...");
-                    JObject _srcDoc = srcDoc.First<JObject>();
- 
-                    IQueryable<JObject> desDoc = connection.DocDBclient.CreateDocumentQuery<JObject>(
-                      UriFactory.CreateDocumentCollectionUri("GroupMatch", collectionName),
-                      queryDesSQL,
-                      queryOptions);
+                    string srcDocStr = RetrieveDocument(connection, querySrcSQL);
+                    JObject _srcDoc = JsonConvert.DeserializeObject<JObject>(srcDocStr);
                     Console.WriteLine("Running direct SQL query...");
                     JObject revEdgeObject = null;
-                    JObject _desDoc = desDoc.First<JObject>();
+                    //JObject _desDoc = desDoc.First<JObject>();
+                    string desDocStr = RetrieveDocument(connection, queryDesSQL);
+                    JObject _desDoc = JsonConvert.DeserializeObject<JObject>(srcDocStr);
 
                     if(_srcDoc != null && _desDoc != null)
                     {
@@ -538,11 +542,14 @@ namespace GraphViewUnitTest
                         var iter = _edge;
                         while(iter != null)
                         {
-                            if(iter["_sink"].ToString() == desID.Key)
+                            if (iter["_sink"].ToString() == desID.Key)
                             {
-
+                                break;
                             }
-                            iter = iter.Next;
+                            else
+                            {
+                                iter = iter.Next;
+                            }
                         }
                         // update the edge properties
                         revEdgeObject = iter.Value<JObject>();
@@ -552,7 +559,7 @@ namespace GraphViewUnitTest
                         revEdgeObject["_sinkLabel"] = _srcDoc["label"];
 
                         // Update the des doc edge property to fix the edge lose
-                        var id_des = desID;
+                        var id_des = desID.Key;
                         var jsonDocArr_des = new StringBuilder();
                         jsonDocArr_des.Append("{\"$addToSet\": { \"_reverse_edge\":  ");
                         jsonDocArr_des.Append(revEdgeObject.ToString());

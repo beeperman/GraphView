@@ -277,14 +277,31 @@ namespace GraphViewUnitTest
                 "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
                 "GroupMatch", "TransactionTest");
             //connection.ResetCollection();
+            connection.launchTransactionCheck = true;
             GraphViewCommand graph = new GraphViewCommand(connection);
             var t = DateTime.Now;
             graph.g().AddV("character" + t).Property("name", "VENUS II").Property("weapon", "shield").Next();
             graph.g().AddV("comicbook" + t).Property("name", "AVF 4").Next();
             //graph.g().AddV("comicbook2" + t + 1).Property("name", "AVF 4").Next();
             graph.g().V().Has("name", "VENUS II").AddE("appeared").To(graph.g().V().Has("name", "AVF 4")).Next();
-            //graph.g().V().Has("name", "VENUS II").AddE("appeared").To(graph.g().V().Has("name", "AVF 5")).Next();
+            graph.g().V().Has("name", "VENUS II").AddE("appeared2").To(graph.g().V().Has("name", "AVF 4")).Next();
+            graph.g().V().Has("name", "VENUS II").AddE("appeared3").To(graph.g().V().Has("name", "AVF 4")).Next();
         }
+        [TestMethod]
+        public void ConnectionCheckTransactionThreadTest()
+        {
+            connection connection = new connection("https://graphview.documents.azure.com:443/",
+               "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
+               "GroupMatch", "TransactionTest");
+            //connection.ResetCollection();
+            connection.launchTransactionCheck = true;
+            while(true)
+            {
+                //Console.WriteLine();
+                Thread.Sleep(3000);
+            }
+        }
+
         [TestMethod]
         public void ResetTheCollection()
         {
@@ -304,7 +321,7 @@ namespace GraphViewUnitTest
             // -- it doesn't cause the script to time out, so the batch number can be minimzed.
             const int maxJsonSize = 50000;
             // Prepare the BulkInsert stored procedure
-            string jsBody = File.ReadAllText(@"..\..\..\GraphView\GraphViewExecutionRuntime\transaction\update2.js");
+            string jsBody = File.ReadAllText(@"..\..\..\GraphView\GraphViewExecutionRuntime\transaction\update.js");
             StoredProcedure sproc = new StoredProcedure
             {
                 Id = "UpdateEdge" + DateTime.Now.ToLongTimeString(),
@@ -349,8 +366,8 @@ namespace GraphViewUnitTest
             Thread thread = new Thread(() => {
                 for (;;)
                 {
-                    Console.WriteLine("Backend is running");
-                    Thread.Sleep(1);
+                    Console.WriteLine("Backend is running" + DateTime.Now);
+                    Thread.Sleep(100);
                 }
             });
 
@@ -361,26 +378,30 @@ namespace GraphViewUnitTest
             for (int i = 0; i < 1000000000; i ++){ };
         }
         [TestMethod]
-        public void DocumentDBQueryTest()
+        public void DocumentDBQueryAndClearReverseEdgeTest()
         {
-            var collectionName = "MarvelTest";
-            var queryDocID = "5e07961e-3384-4690-94ff-326d3f72e177";
-            connection connection = new connection("https://graphview.documents.azure.com:443/",
-              "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
-              "GroupMatch", collectionName);
-            FeedOptions queryOptions = new FeedOptions { MaxItemCount = -1 };
-            //Fetch the Document to be updated
-            IQueryable<JObject> doc = connection.DocDBclient.CreateDocumentQuery<JObject>(UriFactory.CreateDocumentCollectionUri("GroupMatch", collectionName), 
-                "select * from " + collectionName + " where " + collectionName + ".id = \"" + queryDocID + "\""  , queryOptions);
-
+            try
+            {
+                var collectionName = "TransactionTest";
+                var queryDocID = "5e07961e-3384-4690-94ff-326d3f72e177";
+                connection connection = new connection("https://graphview.documents.azure.com:443/",
+                  "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
+                  "GroupMatch", collectionName);
+                FeedOptions queryOptions = new FeedOptions { MaxItemCount = -1 };
+                //Fetch the Document to be updated
+                foreach (var doc in connection.DocDBclient.CreateDocumentQuery<Document>(UriFactory.CreateDocumentCollectionUri("GroupMatch", collectionName), queryOptions))
+                {
+                    doc.SetPropertyValue("_reverse_edge", JsonConvert.DeserializeObject("[]"));
+                    doc.SetPropertyValue("_nextReverseEdgeOffset", JsonConvert.DeserializeObject("0"));
+                    connection.DocDBclient.ReplaceDocumentAsync(doc).Wait();
+                }
+            }   catch(Exception e)
+            {
+                Console.WriteLine(e.StackTrace);
+            }
             //Update some properties on the found resource
             //Now persist these changes to the database by replacing the original resource
-            
-            foreach(var _doc in doc)
-            {
-                Console.WriteLine(_doc);
-            }
-            Console.WriteLine("Press any key to continue ..." + doc);
+            Console.WriteLine("Press any key to continue ...");
         }
         [TestMethod] 
         public void DocumentDBQueryAndUpdateTest()

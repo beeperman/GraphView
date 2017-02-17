@@ -58,6 +58,8 @@ namespace GraphView
 
         internal VertexObjectCache VertexCache { get; private set; }
 
+        public Thread TransactionCheckThread;
+        public Boolean launchTransactionCheck = true;
         /// <summary>
         ///     Initializes a new connection to DocDB.
         ///     Contains four string,
@@ -84,6 +86,20 @@ namespace GraphView
             DocDBclient.OpenAsync();
 
             VertexCache = VertexObjectCache.Instance;
+            // set up the transaction check thread
+            TransactionCheckThread = new Thread(() => {
+                while(launchTransactionCheck)
+                {
+                    Console.WriteLine("Backend TransactionCheck Thread is running" + DateTime.Now);
+                    DaemonTransactionCheck(); // do check the failed transaction insertion
+                    Thread.Sleep(1000); // the param could be exposed to an pubic config parameter
+                }
+            });
+
+            TransactionCheckThread.Name = "TransactionCheckThread";// Asigning name to the thread
+            TransactionCheckThread.IsBackground = true;// Made the thread background
+            TransactionCheckThread.Priority = ThreadPriority.Lowest;// Setting thread priority to low
+            TransactionCheckThread.Start();// Start the thread
         }
 
         internal DbPortal CreateDatabasePortal()
@@ -96,6 +112,7 @@ namespace GraphView
         /// </summary>
         public void Dispose()
         {
+            launchTransactionCheck = false; 
         }
 
         public void ResetCollection()
@@ -143,66 +160,6 @@ namespace GraphView
                     .ConfigureAwait(continueOnCapturedContext: false);
         }
 
-        public void InsertEdgeInTransaction(string srcId, string sinkId, JObject edgeObject, JObject revEdgeObject)
-        {
-            // (1) create procedure
-            string collectionLink = "dbs/" + DocDB_DatabaseId + "/colls/" + DocDB_CollectionId;
-
-            // Each batch size is determined by maxJsonSize.
-            // maxJsonSize should be so that:
-            // -- it fits into one request (MAX request size is ???).
-            // -- it doesn't cause the script to time out, so the batch number can be minimzed.
-            const int maxJsonSize = 50000;
-
-            // Prepare the BulkInsert stored procedure
-            string jsBody = File.ReadAllText(@"..\..\..\GraphView\GraphViewExecutionRuntime\transaction\update.js");
-            StoredProcedure sproc = new StoredProcedure
-            {
-                Id = "UpdateEdge",
-                Body = jsBody,
-            };
-
-            var bulkInsertCommand = new GraphViewCommand(this);
-            //Create the BulkInsert stored procedure if it doesn't exist
-            Task<StoredProcedure> spTask = bulkInsertCommand.TryCreatedStoredProcedureAsync(collectionLink, sproc);
-            spTask.Wait();
-            sproc = spTask.Result;
-            var sprocLink = sproc.SelfLink;
-            // (2) Update source vertex
-            // Execute the batch
-            var id_src = srcId;
-            var jsonDocArr_src = new StringBuilder();
-            jsonDocArr_src.Append("{\"$addToSet\": { \"_edge\":  ");
-            jsonDocArr_src.Append(edgeObject.ToString());
-            jsonDocArr_src.Append("}}");
-            var objs_src = new dynamic[] { JsonConvert.DeserializeObject<dynamic>(jsonDocArr_src.ToString()) };
-
-            var incOffset = new StringBuilder();
-            incOffset.Append("{$inc:{\"_nextEdgeOffset\":1}}");
-            var incOffsetDynamic = new dynamic[] { JsonConvert.DeserializeObject<dynamic>(incOffset.ToString()) };
-            var array_src = new dynamic[] {id_src, incOffsetDynamic[0], objs_src[0]};
-
-            var insertTask_src = DocDBclient.ExecuteStoredProcedureAsync<JObject>(sprocLink,  array_src);
-            insertTask_src.Wait();
-            //Console.WriteLine(insertTask_src.Result);
-            // (3) Update des vertex
-            var id_des = sinkId;
-            var jsonDocArr_des = new StringBuilder();
-            jsonDocArr_des.Append("{\"$addToSet\": { \"_reverse_edge\":  ");
-            jsonDocArr_des.Append(revEdgeObject.ToString());
-            jsonDocArr_des.Append("}}");
-            var objs_des = new dynamic[] { JsonConvert.DeserializeObject<dynamic>(jsonDocArr_des.ToString()) };
-
-            var incRevOffset = new StringBuilder();
-            incRevOffset.Append("{$inc:{\"_nextReverseEdgeOffset\":1}}");
-            var incOffsetRevDynamic = new dynamic[] { JsonConvert.DeserializeObject<dynamic>(incRevOffset.ToString()) };
-            var array_des = new dynamic[] {id_des, incOffsetRevDynamic[0], objs_des[0] };
-
-            var insertTask_des = DocDBclient.ExecuteStoredProcedureAsync<JObject>(sprocLink, array_des);
-            insertTask_des.Wait();
-            //Console.WriteLine(insertTask_des.Result);
-        }
-        // new
         public void BulkInsertNodes(List<string> nodes)
         {
             if (!nodes.Any()) return;
@@ -250,6 +207,184 @@ namespace GraphView
                 Console.WriteLine(insertTask.Result + " nodes has already been inserted.");
             }
         }
+
+        public string RetrieveDocument(connection Connection, string script)
+        {
+            //var script = string.Format("SELECT * FROM Node WHERE Node.id = '{0}'", id);
+            FeedOptions queryOptions = new FeedOptions { MaxItemCount = -1 };
+            List<dynamic> result = Connection.DocDBclient.CreateDocumentQuery(
+                UriFactory.CreateDocumentCollectionUri(Connection.DocDB_DatabaseId, Connection.DocDB_CollectionId),
+                script, queryOptions).ToList();
+
+            if (result.Count == 0) return null;
+
+            return ((JObject)result[0]).ToString();
+        }
+
+        public void DaemonTransactionCheck()
+        {
+            //var databaseID = "GroupMatch";
+            //var collectionName = "TransactionTest";
+            //connection connection = new connection("https://graphview.documents.azure.com:443/",
+            //  "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
+            //  databaseID, collectionName);
+
+            GraphViewCommand graph = new GraphViewCommand(this);
+            graph.OutputFormat = OutputFormat.GraphSON;
+            var results = graph.g().V().Next();
+
+            Dictionary<string, HashSet<string>> edgeHash = new Dictionary<string, HashSet<string>>();
+            Dictionary<string, HashSet<string>> reverseEdgeHash = new Dictionary<string, HashSet<string>>();
+
+            // (1) iterate all the vertex, remember the edge
+            foreach (var result in results)
+            {
+                // get the in edge
+                var doc = JsonConvert.DeserializeObject<JObject>(result);
+                var srcID = doc["id"].ToString();
+                var outE = doc["outE"];
+                if (doc["outE"] != null && outE.First != null)
+                {
+                    var iterOut = outE.First.First.First;
+                    while (iterOut != null)
+                    {
+                        var inVID = iterOut["inV"].ToString();
+                        if (!edgeHash.ContainsKey(srcID))
+                        {
+                            edgeHash.Add(srcID, new HashSet<string>());
+                        }
+                        edgeHash[srcID].Add(inVID);
+                        iterOut = iterOut.Next;
+                    }
+                }
+                // get the out edge
+                var inE = doc["inE"];
+                if (doc["inE"] != null && inE.First != null)
+                {
+                    var iterIn = inE.First.First.First;
+                    while (iterIn != null)
+                    {
+                        var outVID = iterIn["outV"].ToString();
+                        if (!reverseEdgeHash.ContainsKey(srcID))
+                        {
+                            reverseEdgeHash.Add(srcID, new HashSet<string>());
+                        }
+                        reverseEdgeHash[srcID].Add(outVID);
+                        iterIn = iterIn.Next;
+                    }
+                }
+                Console.WriteLine(doc);
+            }
+            Console.WriteLine("Finish the edge parse");
+            // (2) check the edge
+            Dictionary<string, HashSet<string>> needRepairEdgeHash = new Dictionary<string, HashSet<string>>();
+            foreach (var srcEdge in edgeHash)
+            {
+                foreach (var desV in srcEdge.Value)
+                {
+                    if (reverseEdgeHash.ContainsKey(desV) && reverseEdgeHash[desV].Contains(srcEdge.Key))
+                    {
+
+                    }
+                    else
+                    {
+                        if (!needRepairEdgeHash.ContainsKey(desV))
+                        {
+                            needRepairEdgeHash.Add(desV, new HashSet<string>());
+                        }
+                        needRepairEdgeHash[desV].Add(srcEdge.Key);
+                    }
+                }
+            }
+            Console.WriteLine("Finish check the edge");
+            // (3) query the doc and updat the edge
+            // create stored procedure
+            // (1) create procedure
+            string collectionLink = "dbs/" + this.DocDB_DatabaseId + "/colls/" + this.DocDB_CollectionId;
+
+            // Each batch size is determined by maxJsonSize.
+            // maxJsonSize should be so that:
+            // -- it fits into one request (MAX request size is ???).
+            // -- it doesn't cause the script to time out, so the batch number can be minimzed.
+            const int maxJsonSize = 50000;
+
+            // Prepare the BulkInsert stored procedure
+            string jsBody = File.ReadAllText(@"..\..\..\GraphView\GraphViewExecutionRuntime\transaction\update.js");
+            StoredProcedure sproc = new StoredProcedure
+            {
+                Id = "UpdateEdge",
+                Body = jsBody,
+            };
+
+            //Create the BulkInsert stored procedure if it doesn't exist
+            Task<StoredProcedure> spTask = graph.TryCreatedStoredProcedureAsync(collectionLink, sproc);
+            spTask.Wait();
+            sproc = spTask.Result;
+            var sprocLink = sproc.SelfLink;
+            FeedOptions queryOptions = new FeedOptions { MaxItemCount = -1 };
+            string collectionName = this.DocDB_CollectionId;
+    
+            foreach (var desID in needRepairEdgeHash)
+            {
+                foreach (var srcID in desID.Value)
+                {
+                    // Here need to use the documentDB API to get the doc
+                    string querySrcSQL = "SELECT * FROM  " + collectionName + " WHERE " + collectionName + ".id = \"" + srcID + "\"";
+                    string queryDesSQL = "SELECT * FROM  " + collectionName + " WHERE " + collectionName + ".id = \"" + desID.Key + "\"";
+                    // replave the old des doc
+                    string srcDocStr = RetrieveDocument(this, querySrcSQL);
+                    JObject _srcDoc = JsonConvert.DeserializeObject<JObject>(srcDocStr);
+                    Console.WriteLine("Running direct SQL query...");
+                    JObject revEdgeObject = null;
+                    //JObject _desDoc = desDoc.First<JObject>();
+                    string desDocStr = RetrieveDocument(this, queryDesSQL);
+                    JObject _desDoc = JsonConvert.DeserializeObject<JObject>(srcDocStr);
+
+                    if (_srcDoc != null && _desDoc != null)
+                    {
+                        // Create the reverse edge
+                        var _edge = _srcDoc["_edge"].First();
+                        var iter = _edge;
+                        while (iter != null)
+                        {
+                            if (iter["_sink"].ToString() == desID.Key)
+                            {
+                                break;
+                            }
+                            else
+                            {
+                                iter = iter.Next;
+                            }
+                        }
+                        // update the edge properties
+                        revEdgeObject = iter.Value<JObject>();
+                        revEdgeObject["_ID"] = 0;
+                        revEdgeObject["_reverse_ID"] = 0;
+                        revEdgeObject["_sink"] = srcID;
+                        revEdgeObject["_sinkLabel"] = _srcDoc["label"];
+
+                        // Update the des doc edge property to fix the edge lose
+                        var id_des = desID.Key;
+                        var jsonDocArr_des = new StringBuilder();
+                        jsonDocArr_des.Append("{\"$addToSet\": { \"_reverse_edge\":  ");
+                        jsonDocArr_des.Append(revEdgeObject.ToString());
+                        jsonDocArr_des.Append("}}");
+                        var objs_des = new dynamic[] { JsonConvert.DeserializeObject<dynamic>(jsonDocArr_des.ToString()) };
+
+                        var incRevOffset = new StringBuilder();
+                        incRevOffset.Append("{$inc:{\"_nextReverseEdgeOffset\":1}}");
+                        var incOffsetRevDynamic = new dynamic[] { JsonConvert.DeserializeObject<dynamic>(incRevOffset.ToString()) };
+
+                        var array_des = new dynamic[] { id_des, incOffsetRevDynamic[0], objs_des[0] };
+                        // Execute the batch
+                        var insertTask_des = DocDBclient.ExecuteStoredProcedureAsync<JObject>(sprocLink, array_des);
+                        insertTask_des.Wait();
+                        // insert the reverse edge to the des vertex doc
+                    }
+                }
+            }
+        }
+
     }
 
     internal sealed class VertexObjectCache

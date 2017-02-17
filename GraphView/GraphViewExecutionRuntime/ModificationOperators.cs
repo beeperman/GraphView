@@ -6,6 +6,11 @@ using System.Threading.Tasks;
 using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.Client;
 using Newtonsoft.Json.Linq;
+using System.IO;
+using Newtonsoft.Json;
+using System.Threading;
+using Newtonsoft.Json.Linq;
+using System.Text;
 
 namespace GraphView
 {
@@ -218,6 +223,7 @@ namespace GraphView
         // The initial json object string of to-be-inserted edge, waiting to update the edgeOffset field
         private string _edgeJsonDocument;
         private List<string> _edgeProperties;
+        private connection _pConnection;
 
         public AddEOperator(GraphViewExecutionOperator pInputOp, connection pConnection, 
             ScalarFunction pSrcFunction, ScalarFunction pSinkFunction, 
@@ -229,6 +235,7 @@ namespace GraphView
             _otherVTag = otherVTag;
             _edgeJsonDocument = pEdgeJsonDocument;
             _edgeProperties = pProjectedFieldList;
+            _pConnection = pConnection;
         }
 
         // TODO: If the scalarSubquery yields a vertex field, we could skip the RetrieveDocument from server
@@ -270,7 +277,7 @@ namespace GraphView
             //Upload(results);
             // old
             // new Update the edge within a transaction
-            Connection.InsertEdgeInTransaction(srcId, sinkId, edgeObject, revEdgeObject);
+            InsertEdgeInTransaction(_pConnection, srcId, sinkId, edgeObject, revEdgeObject);
             // new
             // Update vertex's adjacency list and reverse adjacency list
             var edgeField = FieldObject.GetForwardEdgeField(srcId, srcVertexField["label"]?.ToValue, edgeObject);
@@ -303,6 +310,69 @@ namespace GraphView
 
             return result;
         }
+
+        public void InsertEdgeInTransaction(connection _connection, string srcId, string sinkId, JObject edgeObject, JObject revEdgeObject)
+        {
+            // (1) create procedure
+            string collectionLink = "dbs/" + this._pConnection.DocDB_DatabaseId + "/colls/" + _pConnection.DocDB_CollectionId;
+
+            // Each batch size is determined by maxJsonSize.
+            // maxJsonSize should be so that:
+            // -- it fits into one request (MAX request size is ???).
+            // -- it doesn't cause the script to time out, so the batch number can be minimzed.
+            const int maxJsonSize = 50000;
+
+            // Prepare the BulkInsert stored procedure
+            string jsBody = File.ReadAllText(@"..\..\..\GraphView\GraphViewExecutionRuntime\transaction\update.js");
+            StoredProcedure sproc = new StoredProcedure
+            {
+                Id = "UpdateEdge",
+                Body = jsBody,
+            };
+
+            var bulkInsertCommand = new GraphViewCommand(_pConnection);
+            //Create the BulkInsert stored procedure if it doesn't exist
+            Task<StoredProcedure> spTask = bulkInsertCommand.TryCreatedStoredProcedureAsync(collectionLink, sproc);
+            spTask.Wait();
+            sproc = spTask.Result;
+            var sprocLink = sproc.SelfLink;
+            // (2) Update source vertex
+            // Execute the batch
+            var id_src = srcId;
+            var jsonDocArr_src = new StringBuilder();
+            jsonDocArr_src.Append("{\"$addToSet\": { \"_edge\":  ");
+            jsonDocArr_src.Append(edgeObject.ToString());
+            jsonDocArr_src.Append("}}");
+            var objs_src = new dynamic[] { JsonConvert.DeserializeObject<dynamic>(jsonDocArr_src.ToString()) };
+
+            var incOffset = new StringBuilder();
+            incOffset.Append("{$inc:{\"_nextEdgeOffset\":1}}");
+            var incOffsetDynamic = new dynamic[] { JsonConvert.DeserializeObject<dynamic>(incOffset.ToString()) };
+            var array_src = new dynamic[] { id_src, incOffsetDynamic[0], objs_src[0] };
+
+            var insertTask_src = _pConnection.DocDBclient.ExecuteStoredProcedureAsync<JObject>(sprocLink, array_src);
+            insertTask_src.Wait();
+            var edgeResult = insertTask_src.Result.Response;
+            Console.WriteLine(edgeResult.ToString());
+            var srcEdgeOffset = edgeResult["$addToSet"]["_edge"]["_ID"].ToString();
+            // (3) Update des vertex
+            var id_des = sinkId;
+            var jsonDocArr_des = new StringBuilder();
+            jsonDocArr_des.Append("{\"$addToSet\": { \"_reverse_edge\":");
+            jsonDocArr_des.Append(revEdgeObject.ToString());
+            jsonDocArr_des.Append("}}");
+            var objs_des = new dynamic[] { JsonConvert.DeserializeObject<dynamic>(jsonDocArr_des.ToString()) };
+
+            var incRevOffset = new StringBuilder();
+            incRevOffset.Append("{$inc:{\"_nextReverseEdgeOffset\":" + srcEdgeOffset + "}}");
+            var incOffsetRevDynamic = new dynamic[] { JsonConvert.DeserializeObject<dynamic>(incRevOffset.ToString()) };
+            var array_des = new dynamic[] { id_des, incOffsetRevDynamic[0], objs_des[0] };
+
+            var insertTask_des = _pConnection.DocDBclient.ExecuteStoredProcedureAsync<JObject>(sprocLink, array_des);
+            insertTask_des.Wait();
+            Console.WriteLine(insertTask_des.Result.ToString());
+        }
+
         private Dictionary<string, string> InsertEdge(string srcJsonDocumentString, string sinkJsonDocumentString, string edgeJsonDocumentString, 
             string srcId, string sinkId, out JObject edgeObject, out JObject revEdgeObject)
         {

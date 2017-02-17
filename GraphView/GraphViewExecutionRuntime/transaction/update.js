@@ -1,3 +1,6 @@
+/*
+  Insert Edge Transaction
+*/
 
 function updateSproc(id, update, update2) {
     var collection = getContext().getCollection();
@@ -46,42 +49,75 @@ function updateSproc(id, update, update2) {
         // DocumentDB supports optimistic concurrency control via HTTP ETag.
         var requestOptions = {etag: document._etag};
         console.log("execute the stored procedure");
-
         // Update operators.
         // (1) inc the next offset
-        inc(document, update);
+        //inc(document, update);
+        incOne(document, update);
         //mul(document, update);
         //rename(document, update);
         //set(document, update);
         //unset(document, update);
         //min(document, update);
-        // max(document, update);
-        // currentDate(document, update);
-        
+        //max(document, update);
+        //currentDate(document, update);
         // (2) update the edge object next offset
-        if (update.$inc._nextEdgeOffset != null) update2.$addToSet._edge._ID = update.$inc._nextEdgeOffset - 1;
-        if (update.$inc._nextReverseEdgeOffset != null) update2.$addToSet._reverse_edge._reverse_ID = update.$inc._nextReverseEdgeOffset - 1;
+        //if (update.$inc._nextEdgeOffset != null) update2.$addToSet._edge._ID = update.$inc._nextEdgeOffset - 1;
+        //if (update.$inc._nextReverseEdgeOffset != null) update2.$addToSet._reverse_edge._reverse_ID = update.$inc._nextReverseEdgeOffset - 1;
 
+        if (update.$inc["_nextEdgeOffset"] != null) {
+            update2.$addToSet["_edge"]["_ID"] = document["_nextEdgeOffset"] - 1;
+            update2.$addToSet["_edge"]["_reverse_ID"] = 0;
+        }
+        if (update.$inc["_nextReverseEdgeOffset"] != null) {
+            update2.$addToSet["_reverse_edge"]["_reverse_ID"] = update.$inc["_nextReverseEdgeOffset"];
+            update2.$addToSet["_reverse_edge"]["_ID"] = 0;
+        }
         // (3) update the vertex edge property
         addToSet(document, update2);
         // pop(document, update);
         //push(document, update);
-
         // Update the document.
         //throw new Error(document);
-
         var isAccepted = collection.replaceDocument(document._self, document, requestOptions, function (err, updatedDocument, responseOptions) {
             if (err) throw err;
 
             // If we have successfully updated the document - return it in the response body.
-            response.setBody(updatedDocument);
-            //response.setBody(update);
+            response.setBody(update2);
+            //response.setBody(id);
 
         });
 
         // If we hit execution bounds - throw an exception.
         if (!isAccepted) {
             throw new Error("The stored procedure timed out.");
+        }
+    }
+
+    function incOne(document, update) {
+        var fields, i;
+        //throw new Error(update.m_StringValue.$inc)
+
+        if (update.$inc) {
+            //throw new Error("Enter")
+
+            fields = Object.keys(update.$inc);
+            for (i = 0; i < fields.length; i++) {
+                if (isNaN(update.$inc[fields[i]])) {
+                    // Validate the field; throw an exception if it is not a number (can't increment by NaN).
+                    throw new Error("Bad $inc parameter - 1value must be a number")
+                } else if (document[fields[i]]) {
+                    // If the field exists, increment it by the given amount.
+                    document[fields[i]] += 1;
+                    //throw new Error("Bad Flag")
+
+                    //throw new Error("Bad $inc parameter - 2value must be a number")
+                } else {
+                    // Otherwise set the field to the given amount.
+                    document[fields[i]] = 1;
+
+                    //throw new Error("Bad $inc parameter - 3value must be a number")
+                }
+            }
         }
     }
 

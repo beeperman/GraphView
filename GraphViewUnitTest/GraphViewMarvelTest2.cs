@@ -295,10 +295,12 @@ namespace GraphViewUnitTest
                "GroupMatch", "TransactionTest");
             //connection.ResetCollection();
             connection.launchTransactionCheck = true;
-            while(true)
+            int i = 0;
+            while(true && connection.launchTransactionCheck && i < 10)
             {
                 //Console.WriteLine();
                 Thread.Sleep(3000);
+                i++; 
             }
         }
 

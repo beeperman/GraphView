@@ -69,8 +69,9 @@ function updateSproc(id, update, update2) {
             update2.$addToSet["_edge"]["_reverse_ID"] = 0;
         }
         if (update.$inc["_nextReverseEdgeOffset"] != null) {
+            update2.$addToSet["_reverse_edge"]["_ID"] = update.$inc["_nextReverseEdgeOffset"];
             update2.$addToSet["_reverse_edge"]["_reverse_ID"] = update.$inc["_nextReverseEdgeOffset"];
-            update2.$addToSet["_reverse_edge"]["_ID"] = 0;
+            //update2.$addToSet["_reverse_edge"]["_ID"] = 0;
         }
         // (3) update the vertex edge property
         addToSet(document, update2);
@@ -80,9 +81,8 @@ function updateSproc(id, update, update2) {
         //throw new Error(document);
         var isAccepted = collection.replaceDocument(document._self, document, requestOptions, function (err, updatedDocument, responseOptions) {
             if (err) throw err;
-
             // If we have successfully updated the document - return it in the response body.
-            response.setBody(update2);
+            response.setBody(document._self);
             //response.setBody(id);
 
         });
@@ -257,6 +257,24 @@ function updateSproc(id, update, update2) {
             for (i = 0; i < fields.length; i++) {
                 // ECMAScript's Date.getTime() returns milliseconds, where as POSIX epoch are in seconds.
                 document[fields[i]] = Math.round(currentDate.getTime() / 1000);
+            }
+        }
+    }
+
+    function addToEdgeSet(document, update) {
+        var fields, i;
+
+        if (update.$addToSet) {
+            fields = Object.keys(update.$addToSet);
+
+            for (i = 0; i < fields.length; i++) {
+                if (!Array.isArray(document[fields[i]])) {
+                    // Validate the document field; throw an exception if it is not an array.
+                    throw new Error("Bad $addToSet parameter - field in document must be an array.")
+                } else if (document[fields[i]].indexOf(update.$addToSet[fields[i]]) === -1) {
+                    // Add the element if it doesn't already exist in the array.
+                    document[fields[i]].push(update.$addToSet[fields[i]]);
+                }
             }
         }
     }

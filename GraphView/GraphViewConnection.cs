@@ -55,6 +55,7 @@ namespace GraphView
 
         public string DocDB_Url;
         public DocumentClient DocDBclient;
+        GraphViewCommand graph;
 
         internal VertexObjectCache VertexCache { get; private set; }
 
@@ -86,13 +87,17 @@ namespace GraphView
             DocDBclient.OpenAsync();
 
             VertexCache = VertexObjectCache.Instance;
+            graph = new GraphViewCommand(this);
             // set up the transaction check thread
             TransactionCheckThread = new Thread(() => {
-                while(launchTransactionCheck)
+                int count = 0;
+                while(launchTransactionCheck && count < 3)
                 {
                     Console.WriteLine("Backend TransactionCheck Thread is running" + DateTime.Now);
-                    DaemonTransactionCheck(); // do check the failed transaction insertion
-                    Thread.Sleep(1000); // the param could be exposed to an pubic config parameter
+                    DaemonTransactionCheck(count); // do check the failed transaction insertion
+                    Thread.Sleep(10000); // the param could be exposed to an pubic config parameter
+                    //launchTransactionCheck = false;
+                    count ++;
                 }
             });
 
@@ -221,7 +226,7 @@ namespace GraphView
             return ((JObject)result[0]).ToString();
         }
 
-        public void DaemonTransactionCheck()
+        public void DaemonTransactionCheck(int versionID)
         {
             //var databaseID = "GroupMatch";
             //var collectionName = "TransactionTest";
@@ -229,7 +234,6 @@ namespace GraphView
             //  "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
             //  databaseID, collectionName);
 
-            GraphViewCommand graph = new GraphViewCommand(this);
             graph.OutputFormat = OutputFormat.GraphSON;
             var results = graph.g().V().Next();
 
@@ -245,15 +249,16 @@ namespace GraphView
                 var outE = doc["outE"];
                 if (doc["outE"] != null && outE.First != null)
                 {
-                    var iterOut = outE.First.First.First;
+                    var iterOut = outE.First;
                     while (iterOut != null)
                     {
-                        var inVID = iterOut["inV"].ToString();
-                        if (!edgeHash.ContainsKey(srcID))
+                        var offsetID = iterOut.First.First["id"].ToString();
+                        var inVID = iterOut.First.First["inV"].ToString();
+                        if (!edgeHash.ContainsKey(srcID + "@" + offsetID))
                         {
-                            edgeHash.Add(srcID, new HashSet<string>());
+                            edgeHash.Add(srcID + "@" + offsetID, new HashSet<string>());
                         }
-                        edgeHash[srcID].Add(inVID);
+                        edgeHash[srcID + "@" + offsetID].Add(inVID);
                         iterOut = iterOut.Next;
                     }
                 }
@@ -261,19 +266,20 @@ namespace GraphView
                 var inE = doc["inE"];
                 if (doc["inE"] != null && inE.First != null)
                 {
-                    var iterIn = inE.First.First.First;
+                    var iterIn = inE.First;
                     while (iterIn != null)
                     {
-                        var outVID = iterIn["outV"].ToString();
-                        if (!reverseEdgeHash.ContainsKey(srcID))
+                        var revOffsetID = iterIn.First.First["id"].ToString();
+                        var outVID = iterIn.First.First["outV"].ToString();
+                        if (!reverseEdgeHash.ContainsKey(srcID + "@" + revOffsetID))
                         {
-                            reverseEdgeHash.Add(srcID, new HashSet<string>());
+                            reverseEdgeHash.Add(srcID + "@" + revOffsetID, new HashSet<string>());
                         }
-                        reverseEdgeHash[srcID].Add(outVID);
+                        reverseEdgeHash[srcID + "@" + revOffsetID].Add(outVID );
                         iterIn = iterIn.Next;
                     }
                 }
-                Console.WriteLine(doc);
+                Console.WriteLine(versionID + "@@@@" + doc);
             }
             Console.WriteLine("Finish the edge parse");
             // (2) check the edge
@@ -328,9 +334,16 @@ namespace GraphView
             {
                 foreach (var srcID in desID.Value)
                 {
+                    var srcSplits = srcID.Split('@');
+                    var _srcEdgeID = srcSplits[0];
+                    var _srcOffset = srcSplits[1];
+
+                    var desSplits = desID.Key;
+                    var _desEdgeID = desSplits;
+                    //var _desOffset = desSplits[1];
                     // Here need to use the documentDB API to get the doc
-                    string querySrcSQL = "SELECT * FROM  " + collectionName + " WHERE " + collectionName + ".id = \"" + srcID + "\"";
-                    string queryDesSQL = "SELECT * FROM  " + collectionName + " WHERE " + collectionName + ".id = \"" + desID.Key + "\"";
+                    string querySrcSQL = "SELECT * FROM  " + collectionName + " WHERE " + collectionName + ".id = \"" + _srcEdgeID + "\"";
+                    string queryDesSQL = "SELECT * FROM  " + collectionName + " WHERE " + collectionName + ".id = \"" + _desEdgeID + "\"";
                     // replave the old des doc
                     string srcDocStr = RetrieveDocument(this, querySrcSQL);
                     JObject _srcDoc = JsonConvert.DeserializeObject<JObject>(srcDocStr);
@@ -347,7 +360,7 @@ namespace GraphView
                         var iter = _edge;
                         while (iter != null)
                         {
-                            if (iter["_sink"].ToString() == desID.Key)
+                            if (iter["_sink"].ToString() == desID.Key && iter["_ID"].ToString() == _srcOffset)
                             {
                                 break;
                             }
@@ -360,7 +373,7 @@ namespace GraphView
                         revEdgeObject = iter.Value<JObject>();
                         revEdgeObject["_ID"] = 0;
                         revEdgeObject["_reverse_ID"] = 0;
-                        revEdgeObject["_sink"] = srcID;
+                        revEdgeObject["_sink"] = _srcEdgeID;
                         revEdgeObject["_sinkLabel"] = _srcDoc["label"];
 
                         // Update the des doc edge property to fix the edge lose
@@ -372,13 +385,15 @@ namespace GraphView
                         var objs_des = new dynamic[] { JsonConvert.DeserializeObject<dynamic>(jsonDocArr_des.ToString()) };
 
                         var incRevOffset = new StringBuilder();
-                        incRevOffset.Append("{$inc:{\"_nextReverseEdgeOffset\":1}}");
+                        incRevOffset.Append("{$inc:{\"_nextReverseEdgeOffset\":" + _srcOffset + "}}");
                         var incOffsetRevDynamic = new dynamic[] { JsonConvert.DeserializeObject<dynamic>(incRevOffset.ToString()) };
 
                         var array_des = new dynamic[] { id_des, incOffsetRevDynamic[0], objs_des[0] };
                         // Execute the batch
+                        
                         var insertTask_des = DocDBclient.ExecuteStoredProcedureAsync<JObject>(sprocLink, array_des);
                         insertTask_des.Wait();
+                        //Console.WriteLine("REPLACE DOCUMENT RESULT" + insertTask_des.Result.Response.ToString());
                         // insert the reverse edge to the des vertex doc
                     }
                 }

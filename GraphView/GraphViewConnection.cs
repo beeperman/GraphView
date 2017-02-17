@@ -91,7 +91,7 @@ namespace GraphView
             // set up the transaction check thread
             TransactionCheckThread = new Thread(() => {
                 int count = 0;
-                while(launchTransactionCheck && count < 3)
+                while(launchTransactionCheck)
                 {
                     Console.WriteLine("Backend TransactionCheck Thread is running" + DateTime.Now);
                     DaemonTransactionCheck(count); // do check the failed transaction insertion
@@ -228,15 +228,8 @@ namespace GraphView
 
         public void DaemonTransactionCheck(int versionID)
         {
-            //var databaseID = "GroupMatch";
-            //var collectionName = "TransactionTest";
-            //connection connection = new connection("https://graphview.documents.azure.com:443/",
-            //  "MqQnw4xFu7zEiPSD+4lLKRBQEaQHZcKsjlHxXn2b96pE/XlJ8oePGhjnOofj1eLpUdsfYgEhzhejk2rjH/+EKA==",
-            //  databaseID, collectionName);
-
             graph.OutputFormat = OutputFormat.GraphSON;
             var results = graph.g().V().Next();
-
             Dictionary<string, HashSet<string>> edgeHash = new Dictionary<string, HashSet<string>>();
             Dictionary<string, HashSet<string>> reverseEdgeHash = new Dictionary<string, HashSet<string>>();
 

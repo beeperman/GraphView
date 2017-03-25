@@ -116,6 +116,7 @@
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\VertexTest.cs" />
     <Compile Include="IOTQueryTest.cs" />
     <Compile Include="IoTUnitTest.cs" />
+    <Compile Include="PriorityFirstSearch.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="GraphViewMarvelTest.cs" />
     <Compile Include="ShortestPathTest.cs" />

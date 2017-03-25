@@ -10,10 +10,10 @@ using Microsoft.SqlServer.TransactSql.ScriptDom;
 namespace GraphViewUnitTest
 {
     [TestClass]
-    public class ShortestPathTest
+    public class PriorityFirstSearch
     {
         [TestMethod]
-        public void LoadClassicGraphData()
+        public void LoadClassicGraphDataPFS()
         {
             /*
             GraphViewConnection connection = new GraphViewConnection("https://graphview.documents.azure.com:443/",
@@ -50,7 +50,7 @@ namespace GraphViewUnitTest
         }
 
         [TestMethod]
-        public void ShortestPath()
+        public void PriorityFirstShortest()
         {
             /*
             GraphViewConnection connection = new GraphViewConnection("https://graphview.documents.azure.com:443/",
@@ -82,56 +82,140 @@ namespace GraphViewUnitTest
             var result3 = GetShortestPath(src3, des3, graph);
             Assert.AreEqual(result3, 1);
         }
+        public void UpdatePriority(String src, String v, GraphViewCommand graph) // priority = depth
+        {
+            var srcPriority = Int32.Parse(graph.g().V().HasId(src).Values("priority").Next()[0]);
+            // Get results for further analysis
+            var res = graph.g().V().HasId(v).Values("priority").Next();
+            if (res.Count > 0 && Int32.Parse(res[0]) < srcPriority + 1)
+            {
+                // No need to update (this way longer)
+                return;
+            }
+            var vPriority = srcPriority + 1;
+            if (res.Count > 0)
+            {
+                // Drop previous priority ie. depth
+                graph.g().V().HasId(v).Properties("priority").Drop().Next();
+            }
+            // Update priority
+            graph.g().V().HasId(v).Property("priority", vPriority).Next();
+        }
+        public String LowestPriority(HashSet<String> visited, GraphViewCommand graph)
+        {
+            var vertices = graph.g().V().Values("id").Next();
+            int lowest = int.MaxValue;
+            String lowestV = "";
+            foreach(var v in vertices)
+            {
+                if (visited.Contains(v))
+                {
+                    // Omit visited ones
+                    continue;
+                }
+                var res = graph.g().V().HasId(v).Values("priority").Next();
+                if (res.Count > 0 && Int32.Parse(res[0]) < lowest)
+                {
+                    lowest = Int32.Parse(res[0]);
+                    lowestV = v;
+                }
+            }
+            return lowestV;
+        }
+        public void PFS(String src, GraphViewCommand graph)
+        {
+            // Init
+            graph.g().V().HasId(src).Property("priority", 0).Next(); // A 0 for source
+            HashSet<String> visited = new HashSet<string>();
+            visited.Add(src); // visit the source
+            // Loop
+            while (true)
+            {
+                var vIds = graph.g().V().HasId(src).Out().Values("id").Next();
+                // Update Priority
+                foreach (var vId in vIds)
+                {
+                    UpdatePriority(src, vId, graph);
+                }
+                // Get next
+                String v;
+                if (!(v = LowestPriority(visited, graph)).Equals(""))
+                {
+                    src = v;
+                }
+                if (visited.Contains(src))
+                {
+                    // End
+                    break;
+                }
+                // Mark as visited and loop
+                visited.Add(src);
+            }
+        }
         public int GetShortestPath(String src, String des, GraphViewCommand graph)
         {
+            PFS(src, graph);
+            int depth = 0;
+            var res = graph.g().V().HasId(des).Values("priority").Next();
+            if (res.Count > 0)
+            {
+                depth = Int32.Parse(res[0]);
+            }
+            return depth;
+            /*
             Queue<String> vertexIdQ1 = new Queue<String>();
             Queue<String> vertexIdQ2 = new Queue<String>();
             HashSet<String> historyVertex = new HashSet<string>();
+
             Boolean reachDes = false;
             int depth = 1;
             vertexIdQ1.Enqueue(src);
 
-            while(!reachDes && vertexIdQ1.Count != 0)
+            while (!reachDes && vertexIdQ1.Count != 0)
             {
                 var id = vertexIdQ1.Dequeue();
                 var tempVertexIds = graph.g().V().HasId(id).Out().Values("id").Next();
 
                 foreach (var vertexId in tempVertexIds)
                 {
-                    if(historyVertex.Contains(vertexId))
+                    if (historyVertex.Contains(vertexId))
                     {
                         continue;
-                    } else
+                    }
+                    else
                     {
                         historyVertex.Add(vertexId);
                     }
-                    if(vertexId == des)
+                    if (vertexId == des)
                     {
                         reachDes = true;
                         break;
-                    } else if(vertexId != src)
+                    }
+                    else if (vertexId != src)
                     {
                         vertexIdQ2.Enqueue(vertexId);
                     }
                 }
                 // the uppper level queue become empty, move to next level of graph
-                if(vertexIdQ1.Count == 0 && !reachDes)
+                if (vertexIdQ1.Count == 0 && !reachDes)
                 {
                     var swap = vertexIdQ1;
                     vertexIdQ1 = vertexIdQ2;
                     vertexIdQ2 = swap;
-                    depth ++;
+                    depth++;
                 }
             }
 
             if (reachDes)
             {
                 Console.WriteLine("Shortest Path from {0} to {1}, depth is {2}", src, des, depth);
-            } else
+            }
+            else
             {
                 Console.WriteLine("No path from {0} to {1}, depth is {2}", src, des, 0);
             }
             return depth;
+            */
         }
     }
 }

@@ -69,11 +69,11 @@ namespace GraphViewUnitTest
                 }
                 // (1) only process the nonConverge vertex
                 var vs = JsonConvert.DeserializeObject<JArray>(graph.g().V(nonConvergenceVertex.ToArray()).Next().FirstOrDefault());
-                foreach(var v in vs)
+                foreach (var v in vs)
                 {
                     var vertexId = v["id"].ToString();
                     var inEdges = v["inE"];
-                    var incW = 0.0;
+
                     // (2) only process the nonConverge inEdge vertex
                     if (inEdges != null)
                     {
@@ -93,29 +93,33 @@ namespace GraphViewUnitTest
                                 }
                                 var w = vertexCacheMetrics[inVId].convergeVertexWeightSum + vertexCacheMetrics[inVId].nonConvergeVertexWeightSumPrev;
                                 var size = inEdges.First.First.Count(); // need to refactor for diff edge type
-                                incW += w / size;
+                                var tmpW = w / size;
+
                                 // find the last iter value
-                                if(!vertexCacheMetrics[vertexId].inVWeight.ContainsKey(inVId))
+                                if (!vertexCacheMetrics[vertexId].inVWeight.ContainsKey(inVId))
                                 {
                                     vertexCacheMetrics[vertexId].inVWeight[inVId] = 0.0;
                                 }
-                                vertexCacheMetrics[vertexId].inVWeight[inVId] = incW;
+                                vertexCacheMetrics[vertexId].inVWeight[inVId] = tmpW;
 
-                                if (Math.Abs(incW - vertexCacheMetrics[vertexId].inVWeight[inVId]) < 0.01)
+                                if (Math.Abs(tmpW - vertexCacheMetrics[vertexId].inVWeight[inVId]) < 0.01)
                                 {
                                     // (3) inc the converge vertex weight
                                     nonConvergenceVertex.Remove(vertexId);
-                                    vertexCacheMetrics[vertexId].convergeVertexWeightSum += incW;
-                                } else
+                                    vertexCacheMetrics[vertexId].convergeVertexWeightSum += tmpW;
+                                }
+                                else
                                 {
-                                    vertexCacheMetrics[vertexId].nonConvergeVertexWeightSum += incW;
+                                    vertexCacheMetrics[vertexId].nonConvergeVertexWeightSum += tmpW;
                                 }
                             }
                         }
                     }
+                    if (vertexCacheMetrics.ContainsKey(vertexId)) { 
                     // clear and swap the non converge vertex weight
                     vertexCacheMetrics[vertexId].nonConvergeVertexWeightSumPrev = vertexCacheMetrics[vertexId].nonConvergeVertexWeightSum;
                     vertexCacheMetrics[vertexId].nonConvergeVertexWeightSum = 0.0;
+                    }
                 }
             }
             Console.WriteLine("The Program finished");

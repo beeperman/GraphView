@@ -112,10 +112,10 @@ namespace GraphViewUnitTest
                                 }
                             }
                         }
-                        // clear and swap the non converge vertex weight
-                        vertexCacheMetrics[vertexId].nonConvergeVertexWeightSumPrev = vertexCacheMetrics[vertexId].nonConvergeVertexWeightSum;
-                        vertexCacheMetrics[vertexId].nonConvergeVertexWeightSum = 0.0;
                     }
+                    // clear and swap the non converge vertex weight
+                    vertexCacheMetrics[vertexId].nonConvergeVertexWeightSumPrev = vertexCacheMetrics[vertexId].nonConvergeVertexWeightSum;
+                    vertexCacheMetrics[vertexId].nonConvergeVertexWeightSum = 0.0;
                 }
             }
             Console.WriteLine("The Program finished");

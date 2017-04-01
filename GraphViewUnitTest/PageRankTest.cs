@@ -91,7 +91,7 @@ namespace GraphViewUnitTest
                                 {
                                     vertexCacheMetrics[inVId] = new VertexMetrics();
                                 }
-                                var w = vertexCacheMetrics[inVId].convergeVertexWeightSum;
+                                var w = vertexCacheMetrics[inVId].convergeVertexWeightSum + vertexCacheMetrics[inVId].nonConvergeVertexWeightSumPrev;
                                 var size = inEdges.First.First.Count(); // need to refactor for diff edge type
                                 incW += w / size;
                                 // find the last iter value
@@ -106,10 +106,15 @@ namespace GraphViewUnitTest
                                     // (3) inc the converge vertex weight
                                     nonConvergenceVertex.Remove(vertexId);
                                     vertexCacheMetrics[vertexId].convergeVertexWeightSum += incW;
+                                } else
+                                {
+                                    vertexCacheMetrics[vertexId].nonConvergeVertexWeightSum += incW;
                                 }
                             }
-
                         }
+                        // clear and swap the non converge vertex weight
+                        vertexCacheMetrics[vertexId].nonConvergeVertexWeightSumPrev = vertexCacheMetrics[vertexId].nonConvergeVertexWeightSum;
+                        vertexCacheMetrics[vertexId].nonConvergeVertexWeightSum = 0.0;
                     }
                 }
             }
@@ -120,6 +125,8 @@ namespace GraphViewUnitTest
     public class VertexMetrics
     {
         public Double convergeVertexWeightSum = 1.0;
+        public Double nonConvergeVertexWeightSumPrev = 1.0;
+        public Double nonConvergeVertexWeightSum = 1.0;
         public Dictionary<String, Double> inVWeight = new Dictionary<string, double>();
     }
 }

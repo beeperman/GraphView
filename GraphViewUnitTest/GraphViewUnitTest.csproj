@@ -123,6 +123,7 @@
     <Compile Include="TinkPopJsonParser.cs" />
     <Compile Include="TestLarge.cs" />
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\AddEdgeTest.cs" />
+    <Compile Include="PageRankTest.cs" />
     <Compile Include="Utils.cs" />
   </ItemGroup>
   <ItemGroup>

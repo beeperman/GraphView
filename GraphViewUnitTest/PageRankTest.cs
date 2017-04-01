@@ -49,7 +49,6 @@ namespace GraphViewUnitTest
             "GroupMatch", "MarvelTest");
             GraphViewCommand graph = new GraphViewCommand(connection);
             graph.OutputFormat = OutputFormat.GraphSON;
-            var src1 = graph.g().V().HasLabel("person").Has("name", Predicate.eq("marko")).Values("id").Next()[0];
             Dictionary<String, VertexMetrics> vertexCacheMetrics = new Dictionary<string, VertexMetrics>();
             HashSet<String> nonConvergenceVertex = new HashSet<string>();
             var vertexs = JsonConvert.DeserializeObject < JArray >(graph.g().V().Next().FirstOrDefault());

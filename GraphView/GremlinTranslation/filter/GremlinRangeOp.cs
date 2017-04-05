@@ -10,16 +10,18 @@ namespace GraphView
     {
         public int Low { get; set; }
         public int High { get; set; }
-        public GremlinKeyword.Scope Scope { get; set; }
         public bool IsReverse { get; set; }
+    }
 
-        public GremlinRangeOp(int low, int high, GremlinKeyword.Scope scope, bool isReverse = false)
+    internal class GremlinRangeGlobalOp : GremlinRangeOp
+    {
+        public GremlinRangeGlobalOp(int low, int high, bool isReverse = false)
         {
-            Low = low;
-            High = high;
-            Scope = scope;
-            IsReverse = isReverse;
+            this.Low = low;
+            this.High = high;
+            this.IsReverse = isReverse;
         }
+
         internal override GremlinToSqlContext GetContext()
         {
             GremlinToSqlContext inputContext = GetInputContext();
@@ -28,7 +30,30 @@ namespace GraphView
                 throw new QueryCompilationException("The PivotVariable can't be null.");
             }
 
-            inputContext.PivotVariable.Range(inputContext, Low, High, Scope, IsReverse);
+            inputContext.PivotVariable.RangeGlobal(inputContext, this.Low, this.High, this.IsReverse);
+
+            return inputContext;
+        }
+    }
+
+    internal class GremlinRangeLocalOp : GremlinRangeOp
+    {
+        public GremlinRangeLocalOp(int low, int high, bool isReverse = false)
+        {
+            this.Low = low;
+            this.High = high;
+            this.IsReverse = isReverse;
+        }
+
+        internal override GremlinToSqlContext GetContext()
+        {
+            GremlinToSqlContext inputContext = GetInputContext();
+            if (inputContext.PivotVariable == null)
+            {
+                throw new QueryCompilationException("The PivotVariable can't be null.");
+            }
+
+            inputContext.PivotVariable.RangeLocal(inputContext, this.Low, this.High, this.IsReverse);
 
             return inputContext;
         }

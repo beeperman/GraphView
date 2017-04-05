@@ -44,12 +44,12 @@ namespace GraphView
 
         public virtual void ModulateBy(GraphTraversal2 traversal)
         {
-            throw new NotImplementedException();
+            throw new SyntaxErrorException($"{this} can't be modulated with by-step");
         }
 
         public virtual void ModulateBy(GraphTraversal2 traversal, IComparer order)
         {
-            throw new NotImplementedException();
+            throw new SyntaxErrorException($"{this} can't be modulated with by-step");
         }
 
         public virtual void ModulateBy(GremlinKeyword.Order order)

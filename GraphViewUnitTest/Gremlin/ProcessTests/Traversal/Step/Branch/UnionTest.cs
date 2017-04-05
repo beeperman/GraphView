@@ -64,11 +64,6 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Branch
         /// Port of the g_V_chooseXlabel_eq_person__unionX__out_lang__out_nameX__in_labelX() UT from org/apache/tinkerpop/gremlin/process/traversal/step/branch/UnionTest.java.
         /// Equivalent gremlin: "g.V.choose(__.label.is('person'), union(__.out.lang, __.out.name), __.in.label)"
         /// </summary>
-        /// <remarks>
-        /// This fails because Choose is not implemented.
-        /// \Development\Euler\Product\Microsoft.Azure.Graph\GraphView\GremlinTranslation2\branch\GremlinChooseOp.cs Line 45, in GetContext().
-        /// WorkItem to track this: https://msdata.visualstudio.com/DocumentDB/_workitems/edit/36531
-        /// </remarks>
         [TestMethod]
         public void ChooseIfPersonThenUnionOutLangOutAndOutNameElseInLabel()
         {

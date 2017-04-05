@@ -68,7 +68,7 @@ namespace GraphView
             {
                 if (projectProperty == GremlinKeyword.TableDefaultColumnName)
                 {
-                    firstQueryExpr.SelectElements.Add(SqlUtil.GetSelectScalarExpr(InputVariable.DefaultProjection().ToScalarExpression(),
+                    firstQueryExpr.SelectElements.Add(SqlUtil.GetSelectScalarExpr(InputVariable.GetDefaultProjection().ToScalarExpression(),
                         GremlinKeyword.TableDefaultColumnName));
                 }
                 else if (InputVariable.ProjectedProperties.Contains(projectProperty))

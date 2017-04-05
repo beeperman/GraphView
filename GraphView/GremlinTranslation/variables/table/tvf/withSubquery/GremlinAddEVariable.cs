@@ -93,7 +93,7 @@ namespace GraphView
             if (context == null)
             {
                 var queryBlock = new WSelectQueryBlock();
-                queryBlock.SelectElements.Add(SqlUtil.GetSelectScalarExpr(InputVariable.DefaultProjection().ToScalarExpression()));
+                queryBlock.SelectElements.Add(SqlUtil.GetSelectScalarExpr(InputVariable.GetDefaultProjection().ToScalarExpression()));
                 return queryBlock;
             }
             else

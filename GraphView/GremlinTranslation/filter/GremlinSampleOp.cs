@@ -9,14 +9,19 @@ namespace GraphView
 {
     internal class GremlinSampleOp: GremlinTranslationOperator
     {
-        public GremlinKeyword.Scope Scope { get; set; }
         public int AmountToSample { get; set; }
         public GraphTraversal2 ProbabilityTraversal { get; set; }
 
-        public GremlinSampleOp(GremlinKeyword.Scope scope, int amountToSample)
+        public GremlinSampleOp(int amountToSample)
         {
-            Scope = scope;
-            AmountToSample = amountToSample;
+            this.AmountToSample = amountToSample;
+        }
+    }
+
+    internal class GremlinSampleGlobalOp : GremlinSampleOp
+    {
+        public GremlinSampleGlobalOp(int amountToSample): base(amountToSample)
+        {
         }
 
         internal override GremlinToSqlContext GetContext()
@@ -28,21 +33,47 @@ namespace GraphView
             }
 
             GremlinToSqlContext probabilityContext = null;
-            if (ProbabilityTraversal != null)
+            if (this.ProbabilityTraversal != null)
             {
-                ProbabilityTraversal.GetStartOp().InheritedVariableFromParent(inputContext);
-                probabilityContext = ProbabilityTraversal.GetEndOp().GetContext();
+                this.ProbabilityTraversal.GetStartOp().InheritedVariableFromParent(inputContext);
+                probabilityContext = this.ProbabilityTraversal.GetEndOp().GetContext();
             }
 
-            inputContext.PivotVariable.Sample(inputContext, Scope, AmountToSample, probabilityContext);
+            inputContext.PivotVariable.SampleGlobal(inputContext, this.AmountToSample, probabilityContext);
+
+            return inputContext;
+        }
+    }
+
+    internal class GremlinSampleLocalOp : GremlinSampleOp
+    {
+        public GremlinSampleLocalOp(int amountToSample): base(amountToSample)
+        {
+        }
+
+        internal override GremlinToSqlContext GetContext()
+        {
+            GremlinToSqlContext inputContext = GetInputContext();
+            if (inputContext.PivotVariable == null)
+            {
+                throw new QueryCompilationException("The PivotVariable can't be null.");
+            }
+
+            GremlinToSqlContext probabilityContext = null;
+            if (this.ProbabilityTraversal != null)
+            {
+                this.ProbabilityTraversal.GetStartOp().InheritedVariableFromParent(inputContext);
+                probabilityContext = this.ProbabilityTraversal.GetEndOp().GetContext();
+            }
+
+            inputContext.PivotVariable.SampleLocal(inputContext, this.AmountToSample, probabilityContext);
 
             return inputContext;
         }
 
         public override void ModulateBy(GraphTraversal2 traversal)
         {
-            if (Scope == GremlinKeyword.Scope.Local) throw new SyntaxErrorException("Sample(Local) can't be modulated by by()");
-            ProbabilityTraversal = traversal;
+            this.ProbabilityTraversal = traversal;
         }
     }
 }

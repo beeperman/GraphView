@@ -175,7 +175,7 @@ namespace GraphView
                 if (property == GremlinKeyword.Path)
                 {
                     repeatFirstSelect.Add(SqlUtil.GetSelectScalarExpr(SqlUtil.GetValueExpr(null), GremlinKeyword.Path));
-                    repeatSecondSelect.Add(SqlUtil.GetSelectScalarExpr(RepeatContext.ContextLocalPath.DefaultProjection().ToScalarExpression(), GremlinKeyword.Path));
+                    repeatSecondSelect.Add(SqlUtil.GetSelectScalarExpr(RepeatContext.ContextLocalPath.GetDefaultProjection().ToScalarExpression(), GremlinKeyword.Path));
                     continue;
                 }
                 WScalarExpression firstExpr = InputVariable.ProjectedProperties.Contains(property)

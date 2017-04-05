@@ -67,7 +67,7 @@ namespace GraphView
             {
                 throw new QueryExecutionException("CommandText of GraphViewCommand is not set.");
             }
-            return g().EvalGremlinTraversal(CommandText);
+            return g().EvalTraversal(CommandText);
         }
 
         public List<string> ExecuteAndGetResults()

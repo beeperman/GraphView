@@ -9,67 +9,92 @@ namespace GraphView
     internal class GremlinDedupVariable : GremlinTableVariable
     {
         public GremlinVariable InputVariable { get; set; }
-        public List<GremlinVariable> DedupVariables { get; set; }
         public GremlinToSqlContext DedupContext { get; set; }
-        public GremlinKeyword.Scope Scope { get; set; }
 
         public GremlinDedupVariable(GremlinVariable inputVariable, 
-                                    List<GremlinVariable> dedupVariables, 
-                                    GremlinToSqlContext dedupContext,
-                                    GremlinKeyword.Scope scope) : base(GremlinVariableType.Table)
+                                    GremlinToSqlContext dedupContext) : base(GremlinVariableType.Table)
         {
-            InputVariable = inputVariable;
-            DedupVariables = new List<GremlinVariable>(dedupVariables);
-            DedupContext = dedupContext;
-            Scope = scope;
-        }
-
-        internal override void Populate(string property)
-        {
-            InputVariable?.Populate(property);
-            foreach (var variable in DedupVariables)
-            {
-                variable.Populate(property);
-            }
-            base.Populate(property);
-        }
-
-        internal override List<GremlinVariable> FetchAllVars()
-        {
-            List<GremlinVariable> variableList = new List<GremlinVariable>() { this };
-            variableList.Add(InputVariable);
-            variableList.AddRange(DedupVariables);
-            if (DedupContext != null)
-                variableList.AddRange(DedupContext.FetchAllVars());
-            return variableList;
+            this.InputVariable = inputVariable;
+            this.DedupContext = dedupContext;
         }
 
         internal override List<GremlinVariable> FetchAllTableVars()
         {
             List<GremlinVariable> variableList = new List<GremlinVariable>() { this };
-            if (DedupContext != null)
-                variableList.AddRange(DedupContext.FetchAllTableVars());
+            if (this.DedupContext != null)
+                variableList.AddRange(this.DedupContext.FetchAllTableVars());
+            return variableList;
+        }
+    }
+
+    internal class GremlinDedupGlobalVariable : GremlinDedupVariable
+    {
+        public List<GremlinVariable> DedupVariables { get; set; }
+        public GremlinDedupGlobalVariable(GremlinVariable inputVariable,
+                                    List<GremlinVariable> dedupVariables,
+                                    GremlinToSqlContext dedupContext
+                                    )
+            : base(inputVariable, dedupContext)
+        {
+            this.DedupVariables = dedupVariables;
+        }
+
+        internal override List<GremlinVariable> FetchAllVars()
+        {
+            List<GremlinVariable> variableList = new List<GremlinVariable> {this, this.InputVariable};
+            variableList.AddRange(this.DedupVariables);
+            if (this.DedupContext != null)
+                variableList.AddRange(this.DedupContext.FetchAllVars());
             return variableList;
         }
 
         public override WTableReference ToTableReference()
         {
             List<WScalarExpression> parameters = new List<WScalarExpression>();
-            if (DedupVariables.Count > 0)
+            if (this.DedupVariables.Count > 0)
             {
-                foreach (var dedupVariable in DedupVariables)
-                {
-                    parameters.Add(dedupVariable.DefaultProjection().ToScalarExpression());
-                }
+                parameters.AddRange(this.DedupVariables.Select(dedupVariable => dedupVariable.GetDefaultProjection().ToScalarExpression()));
             }
             else
             {
-                parameters.Add(SqlUtil.GetScalarSubquery(DedupContext.ToSelectQueryBlock()));
+                parameters.Add(SqlUtil.GetScalarSubquery(this.DedupContext.ToSelectQueryBlock()));
             }
 
-            var tableRef = SqlUtil.GetFunctionTableReference(
-                Scope == GremlinKeyword.Scope.Global ? GremlinKeyword.func.DedupGlobal : GremlinKeyword.func.DedupLocal,
-                parameters, GetVariableName());
+            var tableRef = SqlUtil.GetFunctionTableReference(GremlinKeyword.func.DedupGlobal, parameters, GetVariableName());
+            return SqlUtil.GetCrossApplyTableReference(tableRef);
+        }
+    }
+
+    internal class GremlinDedupLocalVariable : GremlinDedupVariable
+    {
+        public GremlinDedupLocalVariable(GremlinVariable inputVariable,
+                                    GremlinToSqlContext dedupContext)
+            : base(inputVariable, dedupContext)
+        {
+        }
+
+        internal override List<GremlinVariable> FetchAllVars()
+        {
+            List<GremlinVariable> variableList = new List<GremlinVariable> {this, this.InputVariable};
+            if (this.DedupContext != null)
+                variableList.AddRange(this.DedupContext.FetchAllVars());
+            return variableList;
+        }
+
+        internal override void Populate(string property)
+        {
+            this.InputVariable?.Populate(property);
+            base.Populate(property);
+        }
+
+        public override WTableReference ToTableReference()
+        {
+            List<WScalarExpression> parameters = new List<WScalarExpression>
+            {
+                SqlUtil.GetScalarSubquery(this.DedupContext.ToSelectQueryBlock())
+            };
+
+            var tableRef = SqlUtil.GetFunctionTableReference(GremlinKeyword.func.DedupLocal, parameters, GetVariableName());
             return SqlUtil.GetCrossApplyTableReference(tableRef);
         }
     }

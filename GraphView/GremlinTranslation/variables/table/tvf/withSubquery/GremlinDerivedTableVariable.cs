@@ -90,7 +90,7 @@ namespace GraphView
         {
             WSelectQueryBlock queryBlock = SubqueryContext.ToSelectQueryBlock();
             queryBlock.SelectElements.Clear();
-            queryBlock.SelectElements.Add(SqlUtil.GetSelectScalarExpr(SqlUtil.GetFunctionCall(GremlinKeyword.func.Min, SubqueryContext.PivotVariable.DefaultProjection().ToScalarExpression()), GremlinKeyword.TableDefaultColumnName));
+            queryBlock.SelectElements.Add(SqlUtil.GetSelectScalarExpr(SqlUtil.GetFunctionCall(GremlinKeyword.func.Min, SubqueryContext.PivotVariable.GetDefaultProjection().ToScalarExpression()), GremlinKeyword.TableDefaultColumnName));
             return SqlUtil.GetDerivedTable(queryBlock, GetVariableName());
         }
     }
@@ -103,7 +103,7 @@ namespace GraphView
         {
             WSelectQueryBlock queryBlock = SubqueryContext.ToSelectQueryBlock();
             queryBlock.SelectElements.Clear();
-            queryBlock.SelectElements.Add(SqlUtil.GetSelectScalarExpr(SqlUtil.GetFunctionCall(GremlinKeyword.func.Max, SubqueryContext.PivotVariable.DefaultProjection().ToScalarExpression()), GremlinKeyword.TableDefaultColumnName));
+            queryBlock.SelectElements.Add(SqlUtil.GetSelectScalarExpr(SqlUtil.GetFunctionCall(GremlinKeyword.func.Max, SubqueryContext.PivotVariable.GetDefaultProjection().ToScalarExpression()), GremlinKeyword.TableDefaultColumnName));
             return SqlUtil.GetDerivedTable(queryBlock, GetVariableName());
         }
     }
@@ -116,7 +116,7 @@ namespace GraphView
         {
             WSelectQueryBlock queryBlock = SubqueryContext.ToSelectQueryBlock();
             queryBlock.SelectElements.Clear();
-            queryBlock.SelectElements.Add(SqlUtil.GetSelectScalarExpr(SqlUtil.GetFunctionCall(GremlinKeyword.func.Mean, SubqueryContext.PivotVariable.DefaultProjection().ToScalarExpression()), GremlinKeyword.TableDefaultColumnName));
+            queryBlock.SelectElements.Add(SqlUtil.GetSelectScalarExpr(SqlUtil.GetFunctionCall(GremlinKeyword.func.Mean, SubqueryContext.PivotVariable.GetDefaultProjection().ToScalarExpression()), GremlinKeyword.TableDefaultColumnName));
             return SqlUtil.GetDerivedTable(queryBlock, GetVariableName());
         }
     }
@@ -129,7 +129,7 @@ namespace GraphView
         {
             WSelectQueryBlock queryBlock = SubqueryContext.ToSelectQueryBlock();
             queryBlock.SelectElements.Clear();
-            queryBlock.SelectElements.Add(SqlUtil.GetSelectScalarExpr(SqlUtil.GetFunctionCall(GremlinKeyword.func.Sum, SubqueryContext.PivotVariable.DefaultProjection().ToScalarExpression()), GremlinKeyword.TableDefaultColumnName));
+            queryBlock.SelectElements.Add(SqlUtil.GetSelectScalarExpr(SqlUtil.GetFunctionCall(GremlinKeyword.func.Sum, SubqueryContext.PivotVariable.GetDefaultProjection().ToScalarExpression()), GremlinKeyword.TableDefaultColumnName));
             return SqlUtil.GetDerivedTable(queryBlock, GetVariableName());
         }
     }
@@ -156,7 +156,7 @@ namespace GraphView
         {
             WSelectQueryBlock queryBlock = SubqueryContext.ToSelectQueryBlock();
             queryBlock.SelectElements.Clear();
-            queryBlock.SelectElements.Add(SqlUtil.GetSelectScalarExpr(SqlUtil.GetFunctionCall(GremlinKeyword.func.Tree, PathVariable.DefaultProjection().ToScalarExpression()), GremlinKeyword.TableDefaultColumnName));
+            queryBlock.SelectElements.Add(SqlUtil.GetSelectScalarExpr(SqlUtil.GetFunctionCall(GremlinKeyword.func.Tree, PathVariable.GetDefaultProjection().ToScalarExpression()), GremlinKeyword.TableDefaultColumnName));
             return SqlUtil.GetDerivedTable(queryBlock, GetVariableName());
         }
     }

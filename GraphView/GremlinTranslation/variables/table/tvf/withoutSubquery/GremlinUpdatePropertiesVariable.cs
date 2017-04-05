@@ -13,13 +13,13 @@ namespace GraphView
         public List<GremlinProperty> PropertyList { get; set; }
         public GremlinVariable UpdateVariable { get; set; }
 
-        public GremlinUpdatePropertiesVariable(GremlinVariable updateVariable, GremlinProperty property): base(GremlinVariableType.NULL)
+        public GremlinUpdatePropertiesVariable(GremlinVariable updateVariable, GremlinProperty property): base(GremlinVariableType.Null)
         {
             UpdateVariable = updateVariable;
             PropertyList = new List<GremlinProperty> { property };
         }
 
-        public GremlinUpdatePropertiesVariable(GremlinVariable vertexVariable, List<GremlinProperty> properties) : base(GremlinVariableType.NULL)
+        public GremlinUpdatePropertiesVariable(GremlinVariable vertexVariable, List<GremlinProperty> properties) : base(GremlinVariableType.Null)
         {
             UpdateVariable = vertexVariable;
             PropertyList = properties;
@@ -35,7 +35,7 @@ namespace GraphView
         public override WTableReference ToTableReference()
         {
             List<WScalarExpression> parameters = new List<WScalarExpression>();
-            parameters.Add(UpdateVariable.DefaultProjection().ToScalarExpression());
+            parameters.Add(UpdateVariable.GetDefaultProjection().ToScalarExpression());
             foreach (var vertexProperty in PropertyList)
             {
                 parameters.Add(vertexProperty.ToPropertyExpr());

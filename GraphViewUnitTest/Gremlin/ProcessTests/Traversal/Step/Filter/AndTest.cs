@@ -61,10 +61,6 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
         /// from org/apache/tinkerpop/gremlin/process/traversal/step/filter/AndTest.java
         /// Gremlin: g.V().as("a").out("knows").and().out("created").in("created").as("a").values("name");
         /// </summary>
-        /// <remarks>
-        /// Bug 36109: Calling GraphTraversal2.And() with no parameter throws exception.
-        /// https://msdata.visualstudio.com/DocumentDB/_workitems/edit/36511
-        /// </remarks>
         [TestMethod]
         public void AndWithAs()
         {

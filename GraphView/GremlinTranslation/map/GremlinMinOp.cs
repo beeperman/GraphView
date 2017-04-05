@@ -8,13 +8,10 @@ namespace GraphView
 {
     internal class GremlinMinOp: GremlinTranslationOperator
     {
-        public GremlinKeyword.Scope Scope { get; set; }
+    }
 
-        public GremlinMinOp(GremlinKeyword.Scope scope)
-        {
-            Scope = scope;
-        }
-
+    internal class GremlinMinGlobalOp : GremlinMinOp
+    {
         internal override GremlinToSqlContext GetContext()
         {
             GremlinToSqlContext inputContext = GetInputContext();
@@ -23,14 +20,23 @@ namespace GraphView
                 throw new QueryCompilationException("The PivotVariable can't be null.");
             }
 
-            if (Scope == GremlinKeyword.Scope.Global)
+            inputContext.PivotVariable.MinGlobal(inputContext);
+
+            return inputContext;
+        }
+    }
+
+    internal class GremlinMinLocalOp : GremlinMinOp
+    {
+        internal override GremlinToSqlContext GetContext()
+        {
+            GremlinToSqlContext inputContext = GetInputContext();
+            if (inputContext.PivotVariable == null)
             {
-                inputContext.PivotVariable.Min(inputContext);
+                throw new QueryCompilationException("The PivotVariable can't be null.");
             }
-            else
-            {
-                inputContext.PivotVariable.MinLocal(inputContext);
-            }
+
+            inputContext.PivotVariable.MinLocal(inputContext);
 
             return inputContext;
         }

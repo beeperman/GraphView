@@ -35,7 +35,7 @@ namespace GraphView
         {
             List<WScalarExpression> parameters = new List<WScalarExpression>();
             parameters.Add(SqlUtil.GetValueExpr(SideEffectKey));
-            parameters.Add(PathVariable.DefaultProjection().ToScalarExpression());
+            parameters.Add(PathVariable.GetDefaultProjection().ToScalarExpression());
             var tableRef = SqlUtil.GetFunctionTableReference(GremlinKeyword.func.Tree, parameters, GetVariableName());
             return SqlUtil.GetCrossApplyTableReference(tableRef);
         }

@@ -33,7 +33,7 @@ namespace GraphView
         {
             List<WScalarExpression> parameters = new List<WScalarExpression>();
         
-            parameters.Add(UnfoldVariable.DefaultProjection().ToScalarExpression());
+            parameters.Add(UnfoldVariable.GetDefaultProjection().ToScalarExpression());
             if (ProjectedProperties.Count == 0)
             {
                 parameters.Add(SqlUtil.GetValueExpr(GremlinKeyword.TableDefaultColumnName));

@@ -35,7 +35,7 @@ namespace GraphView
             }
             else
             {
-                parameters.Add(InputVariable.DefaultProjection().ToScalarExpression());
+                parameters.Add(InputVariable.GetDefaultProjection().ToScalarExpression());
             }
 
             bool isList = false;

@@ -29,7 +29,7 @@ namespace GraphView
         public override WTableReference ToTableReference()
         {
             List<WScalarExpression> parameters = new List<WScalarExpression>();
-            parameters.Add(InputVariable.DefaultProjection().ToScalarExpression());
+            parameters.Add(InputVariable.GetDefaultProjection().ToScalarExpression());
             parameters.Add(SqlUtil.GetValueExpr(IsIncludeTokens ? 1: -1));
             foreach (var propertyKey in PropertyKeys)
             {

@@ -8,12 +8,10 @@ namespace GraphView
 {
     internal class GremlinMaxOp: GremlinTranslationOperator
     {
-        public GremlinKeyword.Scope Scope { get; set; }
+    }
 
-        public GremlinMaxOp(GremlinKeyword.Scope scope)
-        {
-            Scope = scope;
-        }
+    internal class GremlinMaxGlobalOp : GremlinMaxOp
+    {
 
         internal override GremlinToSqlContext GetContext()
         {
@@ -22,15 +20,22 @@ namespace GraphView
             {
                 throw new QueryCompilationException("The PivotVariable can't be null.");
             }
+            inputContext.PivotVariable.MaxGlobal(inputContext);
+            return inputContext;
+        }
+    }
 
-            if (Scope == GremlinKeyword.Scope.Global)
+    internal class GremlinMaxLocalOp : GremlinMaxOp
+    {
+        internal override GremlinToSqlContext GetContext()
+        {
+            GremlinToSqlContext inputContext = GetInputContext();
+            if (inputContext.PivotVariable == null)
             {
-                inputContext.PivotVariable.Max(inputContext);
+                throw new QueryCompilationException("The PivotVariable can't be null.");
             }
-            else
-            {
-                inputContext.PivotVariable.MaxLocal(inputContext);
-            }
+
+            inputContext.PivotVariable.MaxLocal(inputContext);
             return inputContext;
         }
     }

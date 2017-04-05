@@ -35,67 +35,50 @@ namespace GraphView
 
         internal void ConfigureStartAndEndSteps(GraphTraversal2 whereTraversal)
         {
-            if (whereTraversal.GremlinTranslationOpList.Count >= 2)
+            if (whereTraversal.TranslationOpList.Count >= 2)
             {
                 //__.as()
-                GremlinAsOp asOp = whereTraversal.GremlinTranslationOpList[1] as GremlinAsOp;
+                GremlinAsOp asOp = whereTraversal.TranslationOpList[1] as GremlinAsOp;
                 if (asOp != null)
                 {
-                    whereTraversal.GremlinTranslationOpList.RemoveAt(1); //remove as-step
-                    whereTraversal.InsertGremlinOperator(1, new GremlinSelectOp(GremlinKeyword.Pop.Last, asOp.Labels.First()));
+                    whereTraversal.TranslationOpList.RemoveAt(1); //remove as-step
+                    whereTraversal.InsertOperator(1, new GremlinSelectOp(GremlinKeyword.Pop.Last, asOp.Labels.First()));
                 }
 
                 //__.Or()
-                GremlinOrOp orOp = whereTraversal.GremlinTranslationOpList[1] as GremlinOrOp;
+                GremlinOrOp orOp = whereTraversal.TranslationOpList[1] as GremlinOrOp;
                 if (orOp != null)
                 {
-                    if (orOp.IsInfix)
+                    foreach (var traversal in orOp.OrTraversals)
                     {
-                        ConfigureStartAndEndSteps(orOp.FirstTraversal);
-                        ConfigureStartAndEndSteps(orOp.SecondTraversal);
-                    }
-                    else
-                    {
-                        foreach (var traversal in orOp.OrTraversals)
-                        {
-                            ConfigureStartAndEndSteps(traversal);
-                        }
+                        ConfigureStartAndEndSteps(traversal);
                     }
                 }
 
                 //__.And()
-                GremlinAndOp andOp = whereTraversal.GremlinTranslationOpList[1] as GremlinAndOp;
+                GremlinAndOp andOp = whereTraversal.TranslationOpList[1] as GremlinAndOp;
                 if (andOp != null)
                 {
-                    if (andOp.IsInfix)
+                    foreach (var traversal in andOp.AndTraversals)
                     {
-                        ConfigureStartAndEndSteps(andOp.FirstTraversal);
-                        ConfigureStartAndEndSteps(andOp.SecondTraversal);
-                    }
-                    else
-                    {
-                        foreach (var traversal in andOp.AndTraversals)
-                        {
-                            ConfigureStartAndEndSteps(traversal);
-                        }
+                        ConfigureStartAndEndSteps(traversal);
                     }
                 }
 
                 //__.Not()
-                GremlinNotOp notOp = whereTraversal.GremlinTranslationOpList[1] as GremlinNotOp;
+                GremlinNotOp notOp = whereTraversal.TranslationOpList[1] as GremlinNotOp;
                 if (notOp != null)
                 {
                     ConfigureStartAndEndSteps(notOp.NotTraversal);
                 }
             }
 
-            var lastOp = WhereTraversal.LastGremlinTranslationOp as GremlinAsOp;
+            var lastOp = WhereTraversal.GetEndOp() as GremlinAsOp;
             if (lastOp != null)
             {
                 string label = lastOp.Labels.First();
-                whereTraversal.GremlinTranslationOpList.Remove(whereTraversal.LastGremlinTranslationOp); //remove the last as-step
-                whereTraversal.LastGremlinTranslationOp = WhereTraversal.GremlinTranslationOpList.Last();
-                whereTraversal.AddGremlinOperator(new GremlinWherePredicateOp(Predicate.eq(label)));
+                whereTraversal.TranslationOpList.Remove(whereTraversal.GetEndOp()); //remove the last as-step
+                whereTraversal.AddOperator(new GremlinWherePredicateOp(Predicate.eq(label)));
             }
         }
     }

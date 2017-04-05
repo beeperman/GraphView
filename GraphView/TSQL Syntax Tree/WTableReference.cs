@@ -488,7 +488,7 @@ namespace GraphView
 
     public partial class WOrderTableReference : WSchemaObjectFunctionTableReference
     {
-        public List<Tuple<WScalarExpression, IComparer>> OrderParameters { get; set; }
+        public List<Tuple<WScalarExpression, IComparer>> OrderParameters { get; set; } = new List<Tuple<WScalarExpression, IComparer>>();
     }
 
     public partial class WOrderLocalTableReference : WOrderTableReference {}

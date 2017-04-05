@@ -25,6 +25,20 @@ namespace GraphView
             }
         }
 
+        internal static bool IsInjectable(object injection)
+        {
+            if (GremlinUtil.IsList(injection)
+                || GremlinUtil.IsArray(injection)
+                || GremlinUtil.IsNumber(injection)
+                || injection is string
+                || injection is bool) {
+                return true;
+            }
+            else {
+                throw new ArgumentException();
+            }
+        }
+
         internal static string GenerateTableAlias(GremlinVariableType variableType)
         {
             switch (variableType)

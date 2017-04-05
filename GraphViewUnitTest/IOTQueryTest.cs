@@ -29,7 +29,6 @@ namespace GraphViewUnitTest
             GraphViewCommand cmd = new GraphViewCommand(connection);
             var traversal = cmd.g().V("11f09a6e-868c-44d5-86ba-7766d5b16d04").As("a").Out("appeared").In("appeared").Where(Predicate.neq("a"));
             var results = traversal.Next();
-            var result2 = traversal.ToList();
             foreach (var result in results)
             {
                 Console.WriteLine(result);

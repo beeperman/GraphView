@@ -25,7 +25,7 @@ namespace GraphView
         public override WTableReference ToTableReference()
         {
             List<WScalarExpression> parameters = new List<WScalarExpression>();
-            parameters.Add(PathVariable.DefaultProjection().ToScalarExpression());
+            parameters.Add(PathVariable.GetDefaultProjection().ToScalarExpression());
             var tableRef = SqlUtil.GetFunctionTableReference(GremlinKeyword.func.SimplePath, parameters, GetVariableName());
             return SqlUtil.GetCrossApplyTableReference(tableRef);
         }

@@ -17,11 +17,6 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
                 GraphViewCommand.OutputFormat = OutputFormat.Regular;
                 var traversal = GraphViewCommand.g().V().Group();
                 var results = traversal.Next();
-
-                foreach (var result in results)
-                {
-                    Console.WriteLine(result);
-                }
             }
         }
 
@@ -33,12 +28,6 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
                 GraphViewCommand.OutputFormat = OutputFormat.Regular;
                 var traversal = GraphViewCommand.g().V().Group().By(GraphTraversal2.__().Values("name")).By();
                 var results = traversal.Next();
-
-                Console.WriteLine(traversal.SqlScript);
-                foreach (var result in results)
-                {
-                    Console.WriteLine(result);
-                }
             }
         }
     }

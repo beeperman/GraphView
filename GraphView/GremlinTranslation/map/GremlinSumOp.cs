@@ -8,13 +8,10 @@ namespace GraphView
 {
     internal class GremlinSumOp: GremlinTranslationOperator
     {
-        public GremlinKeyword.Scope Scope { get; set; }
+    }
 
-        public GremlinSumOp(GremlinKeyword.Scope scope)
-        {
-            Scope = scope;
-        }
-
+    internal class GremlinSumGlobalOp : GremlinSumOp
+    {
         internal override GremlinToSqlContext GetContext()
         {
             GremlinToSqlContext inputContext = GetInputContext();
@@ -23,14 +20,22 @@ namespace GraphView
                 throw new QueryCompilationException("The PivotVariable can't be null.");
             }
 
-            if (Scope == GremlinKeyword.Scope.Global)
+            inputContext.PivotVariable.SumGlobal(inputContext);
+            return inputContext;
+        }
+    }
+
+    internal class GremlinSumLocalOp : GremlinSumOp
+    {
+        internal override GremlinToSqlContext GetContext()
+        {
+            GremlinToSqlContext inputContext = GetInputContext();
+            if (inputContext.PivotVariable == null)
             {
-                inputContext.PivotVariable.Sum(inputContext);
+                throw new QueryCompilationException("The PivotVariable can't be null.");
             }
-            else
-            {
-                inputContext.PivotVariable.SumLocal(inputContext);
-            }
+
+            inputContext.PivotVariable.SumLocal(inputContext);
 
             return inputContext;
         }

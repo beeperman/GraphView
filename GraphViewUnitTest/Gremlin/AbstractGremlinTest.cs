@@ -161,20 +161,6 @@ namespace GraphViewUnitTest.Gremlin
             return hashMap;
         }
 
-        //public class DicionaryEqualityComparer<TKey, TValue> : IEqualityComparer<IDictionary<TKey, TValue>>
-        //{
-        //    public bool Equals(IDictionary<TKey, TValue> a, IDictionary<TKey, TValue> b)
-        //    {
-        //        return a.Count == b.Count && !a.Except(b).Any();
-        //    }
-
-        //    public int GetHashCode(IDictionary<TKey, TValue> a)
-        //    {
-        //        return a.Select(kvp => kvp.Key.GetHashCode() ^ kvp.Value.GetHashCode())
-        //            .Aggregate(0, (acc, val) => (acc ^ val));
-        //    }
-        //}
-
         public int GetVertexCount(GraphViewCommand graph)
         {
             graph.OutputFormat = OutputFormat.Regular;

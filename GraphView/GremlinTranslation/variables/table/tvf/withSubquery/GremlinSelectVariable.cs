@@ -91,8 +91,8 @@ namespace GraphView
                 queryBlocks.Add(byContext.ToSelectQueryBlock(true));
             }
 
-            parameters.Add(InputVariable.DefaultProjection().ToScalarExpression());
-            parameters.Add(PathVariable.DefaultProjection().ToScalarExpression());
+            parameters.Add(InputVariable.GetDefaultProjection().ToScalarExpression());
+            parameters.Add(PathVariable.GetDefaultProjection().ToScalarExpression());
             switch (Pop)
             {
                 case GremlinKeyword.Pop.All:

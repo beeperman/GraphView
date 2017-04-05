@@ -2,13 +2,11 @@
 using System.CodeDom.Compiler;
 using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
-using Microsoft.CSharp;
+// ReSharper disable All
 
 namespace GraphView
 {
@@ -82,13 +80,23 @@ namespace GraphView
 
     public class GraphTraversal2 : IEnumerable<string>
     {
+        internal List<GremlinTranslationOperator> TranslationOpList { get; set; } = new List<GremlinTranslationOperator>();
+
+        private OutputFormat outputFormat;
+        private GraphTraversalIterator it;
+        private GraphViewConnection connection;
+        private string SqlScript;
+
         public class GraphTraversalIterator : IEnumerator<string>
         {
+            object IEnumerator.Current => currentRecord;
+            public string Current => currentRecord;
+
             private GraphViewConnection connection;
             private string currentRecord;
             private GraphViewExecutionOperator currentOperator;
-            OutputFormat outputFormat;
-            bool firstCall;
+            private OutputFormat outputFormat;
+            private bool firstCall;
 
             internal GraphTraversalIterator(GraphViewExecutionOperator pCurrentOperator, 
                 GraphViewConnection connection, OutputFormat outputFormat)
@@ -138,33 +146,14 @@ namespace GraphView
 
             public void Reset() {}
 
-            object IEnumerator.Current
-            {
-                get
-                {
-                    return currentRecord;
-                }
-            }
-
-            public string Current
-            {
-                get
-                {
-                    return currentRecord;
-                }
-            }
-
-            public void Dispose()
-            {
-
-            }
+            public void Dispose() {}
         }
 
         public IEnumerator<string> GetEnumerator()
         {
-            var sqlScript = LastGremlinTranslationOp.ToSqlScript();
+            var sqlScript = this.GetEndOp().ToSqlScript();
             SqlScript = sqlScript.ToString();
-            it = new GraphTraversalIterator(sqlScript.Batches[0].Compile(null, Connection), Connection, outputFormat);
+            it = new GraphTraversalIterator(sqlScript.Batches[0].Compile(null, this.connection), this.connection, outputFormat);
             return it;
         }
 
@@ -173,39 +162,26 @@ namespace GraphView
             return GetEnumerator();
         }
 
-        public string SqlScript { get; set; }
-        private GraphTraversalIterator it;
-        public GraphViewConnection Connection { get; set; }
-        internal List<GremlinTranslationOperator> GremlinTranslationOpList { get; set; }
-        internal GremlinTranslationOperator LastGremlinTranslationOp { set; get; }
-
-        OutputFormat outputFormat;
-
-        public GraphTraversal2()
-        {
-            GremlinTranslationOpList = new List<GremlinTranslationOperator>();
-        }
+        public GraphTraversal2() {}
 
         public GraphTraversal2(GraphViewConnection pConnection)
         {
-            GremlinTranslationOpList = new List<GremlinTranslationOperator>();
-            Connection = pConnection;
-            outputFormat = OutputFormat.Regular;
+            this.connection = pConnection;
+            this.outputFormat = OutputFormat.Regular;
         }
 
         public GraphTraversal2(GraphViewConnection connection, OutputFormat outputFormat)
         {
-            GremlinTranslationOpList = new List<GremlinTranslationOperator>();
-            Connection = connection;
+            this.connection = connection;
             this.outputFormat = outputFormat;
         }
 
         public List<string> Next()
         {
-            WSqlScript sqlScript = LastGremlinTranslationOp.ToSqlScript();
+            WSqlScript sqlScript = this.GetEndOp().ToSqlScript();
             SqlScript = sqlScript.ToString();
             
-            GraphViewExecutionOperator op = sqlScript.Batches[0].Compile(null, Connection);
+            GraphViewExecutionOperator op = sqlScript.Batches[0].Compile(null, this.connection);
             List<RawRecord> rawRecordResults = new List<RawRecord>();
             RawRecord outputRec = null;
 
@@ -214,11 +190,10 @@ namespace GraphView
             }
 
             List<string> results = new List<string>();
-
             switch (outputFormat)
             {
                 case OutputFormat.GraphSON:
-                    results.Add(GraphSONProjector.ToGraphSON(rawRecordResults, this.Connection));
+                    results.Add(GraphSONProjector.ToGraphSON(rawRecordResults, this.connection));
                     break;
                 default:
                     foreach (var record in rawRecordResults) {
@@ -231,86 +206,80 @@ namespace GraphView
             return results;
         }
 
-        internal void InsertGremlinOperator(int index, GremlinTranslationOperator newGremlinTranslationOp)
+        internal void InsertOperator(int index, GremlinTranslationOperator newOp)
         {
-            if (index >= GremlinTranslationOpList.Count || index == 0) 
-                throw new QueryCompilationException();
-            GremlinTranslationOpList.Insert(index, newGremlinTranslationOp);
-            newGremlinTranslationOp.InputOperator = GremlinTranslationOpList[index-1];
-            if (index + 1 < GremlinTranslationOpList.Count())
+            if (index > this.TranslationOpList.Count) throw new QueryCompilationException();
+            if (index == this.TranslationOpList.Count)
             {
-                GremlinTranslationOpList[index + 1].InputOperator = newGremlinTranslationOp;
+                AddOperator(newOp);
             }
-        }
-
-        internal void AddGremlinOperator(GremlinTranslationOperator newGremlinTranslationOp)
-        {
-            if (LastGremlinTranslationOp is GremlinAndOp && (LastGremlinTranslationOp as GremlinAndOp).IsInfix)
+            if (index == 0)
             {
-                (LastGremlinTranslationOp as GremlinAndOp).SecondTraversal.AddGremlinOperator(newGremlinTranslationOp);
-            }
-            else if (LastGremlinTranslationOp is GremlinOrOp && (LastGremlinTranslationOp as GremlinOrOp).IsInfix)
-            {
-                (LastGremlinTranslationOp as GremlinOrOp).SecondTraversal.AddGremlinOperator(newGremlinTranslationOp);
+                this.TranslationOpList[index].InputOperator = newOp;
+                this.TranslationOpList.Insert(index, newOp);
             }
             else
             {
-                GremlinTranslationOpList.Add(newGremlinTranslationOp);
-                if (LastGremlinTranslationOp == null)
-                {
-                    LastGremlinTranslationOp = newGremlinTranslationOp;
-                }
-                else
-                {
-                    newGremlinTranslationOp.InputOperator = LastGremlinTranslationOp;
-                    LastGremlinTranslationOp = newGremlinTranslationOp;
-                }
+                newOp.InputOperator = this.TranslationOpList[index-1];
+                this.TranslationOpList.Insert(index, newOp);
+                this.TranslationOpList[index + 1].InputOperator = newOp;
+            }
+        }
+
+        internal void AddOperator(GremlinTranslationOperator newOp)
+        {
+            if (GetEndOp() is GremlinAndInfixOp)
+            {
+                ((GremlinAndInfixOp)GetEndOp()).SecondTraversal.AddOperator(newOp);
+            }
+            else if (GetEndOp() is GremlinOrInfixOp)
+            {
+                ((GremlinOrInfixOp)GetEndOp()).SecondTraversal.AddOperator(newOp);
+            }
+            else
+            {
+                newOp.InputOperator = GetEndOp();
+                this.TranslationOpList.Add(newOp);
             }
         }
 
         internal GremlinTranslationOperator GetStartOp()
         {
-            return GremlinTranslationOpList.Count == 0 ? null : GremlinTranslationOpList.First();
+            return this.TranslationOpList.Count == 0 ? null : this.TranslationOpList.First();
         }
 
         internal GremlinTranslationOperator GetEndOp()
         {
-            return LastGremlinTranslationOp;
-        }
-
-        public GraphTraversal2 AddE()
-        {
-            throw new SyntaxErrorException("AddE must have a label");
-            return this;
+            return TranslationOpList.Count == 0 ? null: this.TranslationOpList.Last();
         }
 
         public GraphTraversal2 AddE(string edgeLabel)
         {
-            AddGremlinOperator(new GremlinAddEOp(edgeLabel));
+            this.AddOperator(new GremlinAddEOp(edgeLabel));
             return this;
         }
 
         public GraphTraversal2 AddV()
         {
-            AddGremlinOperator(new GremlinAddVOp());
+            this.AddOperator(new GremlinAddVOp());
             return this;
         }
 
         public GraphTraversal2 AddV(params object[] propertyKeyValues)
         {
-            AddGremlinOperator(new GremlinAddVOp(propertyKeyValues));
+            this.AddOperator(new GremlinAddVOp(propertyKeyValues));
             return this;
         }
 
         public GraphTraversal2 AddV(string vertexLabel)
         {
-            AddGremlinOperator(new GremlinAddVOp(vertexLabel));
+            this.AddOperator(new GremlinAddVOp(vertexLabel));
             return this;
         }
 
         public GraphTraversal2 Aggregate(string sideEffectKey)
         {
-            AddGremlinOperator(new GremlinAggregateOp(sideEffectKey));
+            this.AddOperator(new GremlinAggregateOp(sideEffectKey));
             return this;
         }
 
@@ -321,57 +290,52 @@ namespace GraphView
                 //Infix And step
                 GraphTraversal2 firstTraversal = GraphTraversal2.__();
                 GraphTraversal2 sencondTraversal = GraphTraversal2.__();
-                for (var i = 1; i < GremlinTranslationOpList.Count; i++)
+                for (var i = 1; i < this.TranslationOpList.Count; i++) //reserve the first op as the input
                 {
-                    firstTraversal.AddGremlinOperator(GremlinTranslationOpList[i].Copy());
+                    firstTraversal.AddOperator(this.TranslationOpList[i].Copy());
                 }
-                for (var i = 1; i < GremlinTranslationOpList.Count; i++)
-                {
-                    GremlinTranslationOpList.RemoveAt(i);
-                }
-                LastGremlinTranslationOp = GremlinTranslationOpList.First();
-                GremlinAndOp newAndOp = new GremlinAndOp(firstTraversal, sencondTraversal);
-                AddGremlinOperator(newAndOp);
+                this.TranslationOpList.RemoveRange(1, this.TranslationOpList.Count - 1);
+                this.AddOperator(new GremlinAndInfixOp(firstTraversal, sencondTraversal));
             }
             else
             {
-                AddGremlinOperator(new GremlinAndOp(andTraversals));
+                this.AddOperator(new GremlinAndOp(andTraversals));
             }
             return this;
         }
 
         public GraphTraversal2 As(params string[] labels) {
-            AddGremlinOperator(new GremlinAsOp(labels));
+            this.AddOperator(new GremlinAsOp(labels));
             return this;    
         }
 
         public GraphTraversal2 Barrier()
         {
-            AddGremlinOperator(new GremlinBarrierOp());
+            this.AddOperator(new GremlinBarrierOp());
             return this;
         }
 
         public GraphTraversal2 Barrier(int maxBarrierSize)
         {
-            AddGremlinOperator(new GremlinBarrierOp(maxBarrierSize));
+            this.AddOperator(new GremlinBarrierOp(maxBarrierSize));
             return this;
         }
 
         public GraphTraversal2 Both(params string[] edgeLabels)
         {
-            AddGremlinOperator(new GremlinBothOp(edgeLabels));
+            this.AddOperator(new GremlinBothOp(edgeLabels));
             return this;
         }
 
         public GraphTraversal2 BothE(params string[] edgeLabels)
         {
-            AddGremlinOperator(new GremlinBothEOp(edgeLabels));
+            this.AddOperator(new GremlinBothEOp(edgeLabels));
             return this;
         }
 
         public GraphTraversal2 BothV()
         {
-            AddGremlinOperator(new GremlinBothVOp());
+            this.AddOperator(new GremlinBothVOp());
             return this;
         }
 
@@ -449,45 +413,44 @@ namespace GraphView
 
         public GraphTraversal2 Cap(params string[] sideEffectKeys)
         {
-            AddGremlinOperator(new GremlinCapOp(sideEffectKeys));
+            this.AddOperator(new GremlinCapOp(sideEffectKeys));
             return this;
         }
 
         public GraphTraversal2 Choose(Predicate choosePredicate, GraphTraversal2 trueChoice, GraphTraversal2 falseChoice = null)
         {
-            if (falseChoice == null) falseChoice = __();
-            AddGremlinOperator(new GremlinChooseOp(__().Is(choosePredicate), trueChoice, falseChoice));
-            return this;
+            GraphTraversal2 traversalPredicate = GraphTraversal2.__().Is(choosePredicate);
+            return Choose(traversalPredicate, trueChoice, falseChoice);
         }
 
         public GraphTraversal2 Choose(GraphTraversal2 traversalPredicate, GraphTraversal2 trueChoice, GraphTraversal2 falseChoice = null)
         {
             if (falseChoice == null) falseChoice = __();
-            AddGremlinOperator(new GremlinChooseOp(traversalPredicate, trueChoice, falseChoice));
+            this.AddOperator(new GremlinChooseOp(traversalPredicate, trueChoice, falseChoice));
             return this;
         }
 
         public GraphTraversal2 Choose(GraphTraversal2 choiceTraversal)
         {
-            AddGremlinOperator(new GremlinChooseOp(choiceTraversal));
+            this.AddOperator(new GremlinChooseOp(choiceTraversal));
             return this;
         }
 
         public GraphTraversal2 Coalesce(params GraphTraversal2[] coalesceTraversals)
         {
-            AddGremlinOperator(new GremlinCoalesceOp(coalesceTraversals));
+            this.AddOperator(new GremlinCoalesceOp(coalesceTraversals));
             return this;
         }
 
         public GraphTraversal2 Coin(double probability)
         {
-            AddGremlinOperator(new GremlinCoinOp(probability));
+            this.AddOperator(new GremlinCoinOp(probability));
             return this;
         }
 
         public GraphTraversal2 Constant()
         {
-            AddGremlinOperator(new GremlinConstantOp(new List<object>()));
+            this.AddOperator(new GremlinConstantOp(new List<object>()));
             return this;
         }
 
@@ -497,12 +460,10 @@ namespace GraphView
                 || GremlinUtil.IsArray(value)
                 || GremlinUtil.IsNumber(value)
                 || value is string
-                || value is bool)
-            {
-                AddGremlinOperator(new GremlinConstantOp(value));
+                || value is bool) {
+                this.AddOperator(new GremlinConstantOp(value));
             }
-            else
-            {
+            else {
                 throw new ArgumentException();
             }
             return this;
@@ -510,263 +471,268 @@ namespace GraphView
 
         public GraphTraversal2 Count()
         {
-            AddGremlinOperator(new GremlinCountOp(GremlinKeyword.Scope.Global));
+            this.AddOperator(new GremlinCountGlobalOp());
             return this;
         }
 
         public GraphTraversal2 Count(GremlinKeyword.Scope scope)
         {
-            if (scope == GremlinKeyword.Scope.Global)
-            {
-                AddGremlinOperator(new GremlinCountOp(scope));
+            if (scope == GremlinKeyword.Scope.Global) {
+                this.AddOperator(new GremlinCountGlobalOp());
             }
-            else
-            {
-                AddGremlinOperator(new GremlinCountOp(scope));
+            else {
+                this.AddOperator(new GremlinCountLocalOp());
             }
             return this;
         }
 
         public GraphTraversal2 CyclicPath()
         {
-            AddGremlinOperator(new GremlinCyclicPathOp());
+            this.AddOperator(new GremlinCyclicPathOp());
             return this;
         }
 
         public GraphTraversal2 Dedup(GremlinKeyword.Scope scope, params string[] dedupLabels)
         {
-            AddGremlinOperator(new GremlinDedupOp(scope, dedupLabels));
+            if (scope == GremlinKeyword.Scope.Global) {
+                this.AddOperator(new GremlinDedupGlobalOp(dedupLabels));
+            }
+            else {
+                this.AddOperator(new GremlinDedupLocalOp(dedupLabels));
+            }
             return this;
         }
 
         public GraphTraversal2 Dedup(params string[] dedupLabels)
         {
-            AddGremlinOperator(new GremlinDedupOp(GremlinKeyword.Scope.Global, dedupLabels));
+            this.AddOperator(new GremlinDedupGlobalOp(dedupLabels));
             return this;
         }
 
         public GraphTraversal2 Drop()
         {
-            AddGremlinOperator(new GremlinDropOp());
+            this.AddOperator(new GremlinDropOp());
             return this;
         }
 
         public GraphTraversal2 E()
         {
-            AddGremlinOperator(new GremlinEOp());
+            this.AddOperator(new GremlinEOp());
             return this;
         }
 
         public GraphTraversal2 E(params object[] edgeIdsOrElements)
         {
-            AddGremlinOperator(new GremlinEOp(edgeIdsOrElements));
+            this.AddOperator(new GremlinEOp(edgeIdsOrElements));
             return this;
         }
 
         public GraphTraversal2 E(List<object> edgeIdsOrElements)
         {
-            AddGremlinOperator(new GremlinEOp(edgeIdsOrElements));
+            this.AddOperator(new GremlinEOp(edgeIdsOrElements));
             return this;
         }
 
         public GraphTraversal2 Emit()
         {
-            if (GetEndOp() is GremlinRepeatOp)
-            {
-                (GetEndOp() as GremlinRepeatOp).IsEmit = true;
+            GremlinRepeatOp lastOp = GetEndOp() as GremlinRepeatOp;
+            if (lastOp != null) {
+                lastOp.IsEmit = true;
             }
-            else
-            {
-                AddGremlinOperator(new GremlinRepeatOp());
-                (GetEndOp() as GremlinRepeatOp).IsEmit = true;
-                (GetEndOp() as GremlinRepeatOp).EmitContext = true;
+            else {
+                this.AddOperator(new GremlinRepeatOp()
+                {
+                    EmitContext = true,
+                    IsEmit = true
+                });
             }
             return this;
         }
 
         public GraphTraversal2 Emit(Predicate emitPredicate)
         {
-            if (GetEndOp() is GremlinRepeatOp)
-            {
-                (GetEndOp() as GremlinRepeatOp).IsEmit = true;
-                (GetEndOp() as GremlinRepeatOp).EmitPredicate = emitPredicate;
+            GremlinRepeatOp lastOp = GetEndOp() as GremlinRepeatOp;
+            if (lastOp != null) {
+                lastOp.IsEmit = true;
+                lastOp.EmitPredicate = emitPredicate;
             }
-            else
-            {
-                AddGremlinOperator(new GremlinRepeatOp());
-                (GetEndOp() as GremlinRepeatOp).IsEmit = true;
-                (GetEndOp() as GremlinRepeatOp).EmitPredicate = emitPredicate;
-                (GetEndOp() as GremlinRepeatOp).EmitContext = true;
+            else {
+                this.AddOperator(new GremlinRepeatOp()
+                {
+                    EmitPredicate = emitPredicate,
+                    IsEmit = true,
+                    EmitContext = true
+                });
             }
             return this;
         }
 
         public GraphTraversal2 Emit(GraphTraversal2 emitTraversal)
         {
-            if (GetEndOp() is GremlinRepeatOp)
-            {
-                (GetEndOp() as GremlinRepeatOp).IsEmit = true;
-                (GetEndOp() as GremlinRepeatOp).EmitTraversal = emitTraversal;
+            GremlinRepeatOp lastOp = GetEndOp() as GremlinRepeatOp;
+            if (lastOp != null) {
+                lastOp.IsEmit = true;
+                lastOp.EmitTraversal = emitTraversal;
             }
-            else
-            {
-                AddGremlinOperator(new GremlinRepeatOp());
-                (GetEndOp() as GremlinRepeatOp).IsEmit = true;
-                (GetEndOp() as GremlinRepeatOp).EmitTraversal = emitTraversal;
-                (GetEndOp() as GremlinRepeatOp).EmitContext = true;
+            else {
+                this.AddOperator(new GremlinRepeatOp()
+                {
+                    EmitTraversal = emitTraversal,
+                    IsEmit = true,
+                    EmitContext = true
+                });
             }
             return this;
         }
 
         public GraphTraversal2 FlatMap(GraphTraversal2 flatMapTraversal)
         {
-            AddGremlinOperator(new GremlinFlatMapOp(flatMapTraversal));
+            this.AddOperator(new GremlinFlatMapOp(flatMapTraversal));
             return this;
         }
 
         public GraphTraversal2 Fold()
         {
-            AddGremlinOperator(new GremlinFoldOp());
+            this.AddOperator(new GremlinFoldOp());
             return this;
         }
 
         public GraphTraversal2 From(string fromLabel)
         {
-            GremlinAddEOp addEOp = LastGremlinTranslationOp as GremlinAddEOp;
-            if (addEOp != null)
-            {
+            GremlinAddEOp addEOp = GetEndOp() as GremlinAddEOp;
+            if (addEOp != null) {
                 addEOp.FromVertexTraversal = GraphTraversal2.__().Select(fromLabel);
             }
-            else
-            {
-                throw new SyntaxErrorException($"{LastGremlinTranslationOp} cannot be cast to GremlinAddEOp");
+            else {
+                throw new SyntaxErrorException($"{GetEndOp()} cannot be cast to GremlinAddEOp");
             }
             return this;
         }
 
         public GraphTraversal2 From(GraphTraversal2 fromVertexTraversal)
         {
-            GremlinAddEOp addEOp = LastGremlinTranslationOp as GremlinAddEOp;
-            if (addEOp != null)
-            {
+            GremlinAddEOp addEOp = GetEndOp() as GremlinAddEOp;
+            if (addEOp != null) {
                 addEOp.FromVertexTraversal = fromVertexTraversal;
             }
-            else
-            {
-                throw new SyntaxErrorException($"{LastGremlinTranslationOp} cannot be cast to GremlinAddEOp");
+            else {
+                throw new SyntaxErrorException($"{GetEndOp()} cannot be cast to GremlinAddEOp");
             }
             return this;
         }
 
         public GraphTraversal2 Group()
         {
-            AddGremlinOperator(new GremlinGroupOp());
+            this.AddOperator(new GremlinGroupOp());
             return this;
         }
 
         public GraphTraversal2 Group(string sideEffectKey)
         {
-            AddGremlinOperator(new GremlinGroupOp(sideEffectKey));
+            this.AddOperator(new GremlinGroupOp(sideEffectKey));
             return this;
         }
 
         public GraphTraversal2 GroupCount()
         {
-            GremlinGroupOp newGroupOp = new GremlinGroupOp();
-            newGroupOp.ProjectBy = __().Count();
-            newGroupOp.IsProjectingACollection = false;
-            AddGremlinOperator(newGroupOp);
+            this.AddOperator(new GremlinGroupOp()
+            {
+                ProjectBy = __().Count(),
+                IsProjectingACollection = false
+            });
             return this;
         }
 
         public GraphTraversal2 GroupCount(string sideEffectKey)
         {
-            GremlinGroupOp newGroupOp = new GremlinGroupOp(sideEffectKey);
-            newGroupOp.ProjectBy = __().Count();
-            newGroupOp.IsProjectingACollection = false;
-            AddGremlinOperator(newGroupOp);
+            this.AddOperator(new GremlinGroupOp(sideEffectKey)
+            {
+                ProjectBy = __().Count(),
+                IsProjectingACollection =  false
+            });
             return this;
         }
 
         public GraphTraversal2 Has(string propertyKey)
         {
-            AddGremlinOperator(new GremlinHasOp(GremlinHasType.HasProperty, propertyKey));
+            this.AddOperator(new GremlinHasOp(GremlinHasType.HasProperty, propertyKey));
             return this;
         }
 
         public GraphTraversal2 HasNot(string propertyKey)
         {
-            AddGremlinOperator(new GremlinHasOp(GremlinHasType.HasNotProperty, propertyKey));
+            this.AddOperator(new GremlinHasOp(GremlinHasType.HasNotProperty, propertyKey));
             return this;
         }
 
         public GraphTraversal2 Has(string propertyKey, object predicateOrValue)
         {
             GremlinUtil.CheckIsValueOrPredicate(predicateOrValue);
-            AddGremlinOperator(new GremlinHasOp(propertyKey, predicateOrValue));
+            this.AddOperator(new GremlinHasOp(propertyKey, predicateOrValue));
             return this;
         }
 
         public GraphTraversal2 Has(string propertyKey, GraphTraversal2 propertyTraversal)
         {
-            AddGremlinOperator(new GremlinHasOp(propertyKey, propertyTraversal));
+            this.AddOperator(new GremlinHasOp(propertyKey, propertyTraversal));
             return this;
         }
 
         public GraphTraversal2 Has(string label, string propertyKey, object predicateOrValue)
         {
             GremlinUtil.CheckIsValueOrPredicate(predicateOrValue);
-            AddGremlinOperator(new GremlinHasOp(label, propertyKey, predicateOrValue));
+            this.AddOperator(new GremlinHasOp(label, propertyKey, predicateOrValue));
             return this;
         }
 
         public GraphTraversal2 HasId(params object[] valuesOrPredicates)
         {
             GremlinUtil.CheckIsValueOrPredicate(valuesOrPredicates);
-            AddGremlinOperator(new GremlinHasOp(GremlinHasType.HasId, valuesOrPredicates));
+            this.AddOperator(new GremlinHasOp(GremlinHasType.HasId, valuesOrPredicates));
             return this;
         }
 
         public GraphTraversal2 HasLabel(params object[] valuesOrPredicates)
         {
             GremlinUtil.CheckIsValueOrPredicate(valuesOrPredicates);
-            AddGremlinOperator(new GremlinHasOp(GremlinHasType.HasLabel, valuesOrPredicates));
+            this.AddOperator(new GremlinHasOp(GremlinHasType.HasLabel, valuesOrPredicates));
             return this;
         }
 
         public GraphTraversal2 HasKey(params string[] valuesOrPredicates)
         {
-            AddGremlinOperator(new GremlinHasOp(GremlinHasType.HasKey, valuesOrPredicates));
+            this.AddOperator(new GremlinHasOp(GremlinHasType.HasKey, valuesOrPredicates));
             return this;
         }
 
         public GraphTraversal2 HasValue(params object[] valuesOrPredicates)
         {
             GremlinUtil.CheckIsValueOrPredicate(valuesOrPredicates);
-            AddGremlinOperator(new GremlinHasOp(GremlinHasType.HasValue, valuesOrPredicates));
+            this.AddOperator(new GremlinHasOp(GremlinHasType.HasValue, valuesOrPredicates));
             return this;
         }
 
         public GraphTraversal2 Id()
         {
-            AddGremlinOperator(new GremlinIdOp());
+            this.AddOperator(new GremlinIdOp());
             return this;
         }
 
         public GraphTraversal2 Identity()
         {
+            //Do nothing
             return this;
         }
 
         public GraphTraversal2 In(params string[] edgeLabels)
         {
-            AddGremlinOperator(new GremlinInOp(edgeLabels));
+            this.AddOperator(new GremlinInOp(edgeLabels));
             return this;
         }
 
         public GraphTraversal2 InE(params string[] edgeLabels)
         {
-            AddGremlinOperator(new GremlinInEOp(edgeLabels));
+            this.AddOperator(new GremlinInEOp(edgeLabels));
             return this;
         }
 
@@ -780,17 +746,8 @@ namespace GraphView
         {
             foreach (var injection in injections)
             {
-                if (GremlinUtil.IsList(injection)
-                    || GremlinUtil.IsArray(injection)
-                    || GremlinUtil.IsNumber(injection)
-                    || injection is string
-                    || injection is bool)
-                {
-                    AddGremlinOperator(new GremlinInjectOp(injection));
-                }
-                else
-                {
-                    throw new ArgumentException();
+                if (GremlinUtil.IsInjectable(injection)) {
+                    this.AddOperator(new GremlinInjectOp(injection));
                 }
             }
             return this;
@@ -798,132 +755,149 @@ namespace GraphView
 
         public GraphTraversal2 InV()
         {
-            AddGremlinOperator(new GremlinInVOp());
+            this.AddOperator(new GremlinInVOp());
             return this;
         }
 
         public GraphTraversal2 Is(object value)
         {
-            AddGremlinOperator(new GremlinIsOp(value));
+            this.AddOperator(new GremlinIsOp(value));
             return this;
         }
 
         public GraphTraversal2 Is(Predicate predicate)
         {
-            AddGremlinOperator(new GremlinIsOp(predicate));
+            this.AddOperator(new GremlinIsOp(predicate));
             return this;
         }
 
         public GraphTraversal2 Key()
         {
-            AddGremlinOperator(new GremlinKeyOp());
+            this.AddOperator(new GremlinKeyOp());
             return this;
         }
 
         public GraphTraversal2 Label()
         {
-            AddGremlinOperator(new GremlinLabelOp());
+            this.AddOperator(new GremlinLabelOp());
             return this;
         }
 
         public GraphTraversal2 Limit(int limit)
         {
-            AddGremlinOperator(new GremlinRangeOp(0, limit, GremlinKeyword.Scope.Global));
+            this.AddOperator(new GremlinRangeGlobalOp(0, limit));
             return this;
         }
 
         public GraphTraversal2 Limit(GremlinKeyword.Scope scope, int limit)
         {
-            AddGremlinOperator(new GremlinRangeOp(0, limit, scope));
+            if (scope == GremlinKeyword.Scope.Global) {
+                this.AddOperator(new GremlinRangeGlobalOp(0, limit));
+            }
+            else {
+                this.AddOperator(new GremlinRangeLocalOp(0, limit));
+            }
             return this;
         }
 
         public GraphTraversal2 Local(GraphTraversal2 localTraversal)
         {
-            AddGremlinOperator(new GremlinLocalOp(localTraversal));
+            this.AddOperator(new GremlinLocalOp(localTraversal));
             return this;
         }
 
-        //public GraphTraversal2 loops()
-
         public GraphTraversal2 Map(GraphTraversal2 mapTraversal)
         {
-            AddGremlinOperator(new GremlinMapOp(mapTraversal));
+            this.AddOperator(new GremlinMapOp(mapTraversal));
             return this;   
         }
 
-        //public GraphTraversal2 mapKeys() //Deprecated
-        //public GraphTraversal2 mapvalues() //Deprecated
-
         public GraphTraversal2 Match(params GraphTraversal2[] matchTraversals)
         {
-            AddGremlinOperator(new GremlinMatchOp(matchTraversals));
+            this.AddOperator(new GremlinMatchOp(matchTraversals));
             return this;
         }
 
         public GraphTraversal2 Max()
         {
-            AddGremlinOperator(new GremlinMaxOp(GremlinKeyword.Scope.Global));
+            this.AddOperator(new GremlinMaxGlobalOp());
             return this;
         }
 
         public GraphTraversal2 Max(GremlinKeyword.Scope scope)
         {
-            AddGremlinOperator(new GremlinMaxOp(scope));
+            if (scope == GremlinKeyword.Scope.Global) {
+                this.AddOperator(new GremlinMaxGlobalOp());
+            }
+            else {
+                this.AddOperator(new GremlinMaxLocalOp());
+            }
             return this;
         }
 
         public GraphTraversal2 Mean()
         {
-            AddGremlinOperator(new GremlinMeanOp(GremlinKeyword.Scope.Global));
+            this.AddOperator(new GremlinMeanGlobalOp());
             return this;
         }
 
         public GraphTraversal2 Mean(GremlinKeyword.Scope scope)
         {
-            AddGremlinOperator(new GremlinMeanOp(scope));
+            if (scope == GremlinKeyword.Scope.Global) {
+                this.AddOperator(new GremlinMeanGlobalOp());
+            }
+            else {
+                this.AddOperator(new GremlinMeanLocalOp());
+            }
             return this;
         }
 
         public GraphTraversal2 Min()
         {
-            AddGremlinOperator(new GremlinMinOp(GremlinKeyword.Scope.Global));
+            this.AddOperator(new GremlinMinGlobalOp());
             return this;
         }
 
         public GraphTraversal2 Min(GremlinKeyword.Scope scope)
         {
-            AddGremlinOperator(new GremlinMinOp(scope));
+            if (scope == GremlinKeyword.Scope.Global) {
+                this.AddOperator(new GremlinMinGlobalOp());
+            }
+            else {
+                this.AddOperator(new GremlinMinLocalOp());
+            }
             return this;
         }
 
         public GraphTraversal2 Not(GraphTraversal2 notTraversal)
         {
-           AddGremlinOperator(new GremlinNotOp(notTraversal));
+           this.AddOperator(new GremlinNotOp(notTraversal));
             return this;
         }
+
         public GraphTraversal2 Option(object pickToken, GraphTraversal2 traversalOption)
         {
             if (!(GremlinUtil.IsNumber(pickToken) || pickToken is string || pickToken is GremlinKeyword.Pick || pickToken is bool))
             {
                 throw new ArgumentException();
             }
-            var op = LastGremlinTranslationOp as GremlinChooseOp;
-            if (op != null)
-            {
-                if (op.Options.ContainsKey(pickToken))
-                {
-                    throw new SyntaxErrorException($"Choose step can only have one traversal per pick token: {pickToken}");
+            var op = GetEndOp() as GremlinChooseOp;
+            if (op != null) {
+                if (op.Options.ContainsKey(pickToken)) {
+                    throw new SyntaxErrorException(
+                        $"Choose step can only have one traversal per pick token: {pickToken}");
                 }
                 op.Options[pickToken] = traversalOption;
                 return this;
             }
-            throw new Exception("Option step only can follow by choose step.");
+            else {
+                throw new Exception("Option step only can follow by choose step.");
+            }
         }
 
         public GraphTraversal2 Optional(GraphTraversal2 traversalOption)
         {
-            AddGremlinOperator(new GremlinOptionalOp(traversalOption));
+            this.AddOperator(new GremlinOptionalOp(traversalOption));
             return this;
         }
 
@@ -933,77 +907,77 @@ namespace GraphView
             {
                 //Infix And step
                 GraphTraversal2 firstTraversal = GraphTraversal2.__();
-                GraphTraversal2 sencondTraversal = GraphTraversal2.__();
-                for (var i = 1; i < GremlinTranslationOpList.Count; i++)
+                GraphTraversal2 secondTraversal = GraphTraversal2.__();
+                for (var i = 1; i < this.TranslationOpList.Count; i++)
                 {
-                    firstTraversal.AddGremlinOperator(GremlinTranslationOpList[i].Copy());
+                    firstTraversal.AddOperator(this.TranslationOpList[i].Copy());
                 }
-                for (var i = 1; i < GremlinTranslationOpList.Count; i++)
-                {
-                    GremlinTranslationOpList.RemoveAt(i);
-                }
-                LastGremlinTranslationOp = GremlinTranslationOpList.First();
-                GremlinOrOp newOrOp = new GremlinOrOp(firstTraversal, sencondTraversal);
-                AddGremlinOperator(newOrOp);
+                this.TranslationOpList.RemoveRange(1, this.TranslationOpList.Count - 1);
+                this.AddOperator(new GremlinOrInfixOp(firstTraversal, secondTraversal));
             }
             else
             {
-                AddGremlinOperator(new GremlinOrOp(orTraversals));
+                this.AddOperator(new GremlinOrOp(orTraversals));
             }
             return this;
         }
 
         public GraphTraversal2 Order()
         {
-            AddGremlinOperator(new GremlinOrderOp(GremlinKeyword.Scope.Global));
+            this.AddOperator(new GremlinOrderGlobalOp());
             return this;
         }
 
         public GraphTraversal2 Order(GremlinKeyword.Scope scope)
         {
-            AddGremlinOperator(new GremlinOrderOp(scope));
+            if (scope == GremlinKeyword.Scope.Global) {
+                this.AddOperator(new GremlinOrderGlobalOp());
+            }
+            else {
+                this.AddOperator(new GremlinOrderLocalOp());
+            }
             return this;
         }
 
         public GraphTraversal2 OtherV()
         {
-            AddGremlinOperator(new GremlinOtherVOp());
+            this.AddOperator(new GremlinOtherVOp());
             return this;
         }
 
         public GraphTraversal2 Out(params string[] edgeLabels)
         {
-            AddGremlinOperator(new GremlinOutOp(edgeLabels));
+            this.AddOperator(new GremlinOutOp(edgeLabels));
             return this;
         }
 
         public GraphTraversal2 OutE(params string[] edgeLabels)
         {
-            AddGremlinOperator(new GremlinOutEOp(edgeLabels));
+            this.AddOperator(new GremlinOutEOp(edgeLabels));
             return this;
         }
 
         public GraphTraversal2 OutV()
         {
-            AddGremlinOperator(new GremlinOutVOp());
+            this.AddOperator(new GremlinOutVOp());
             return this;
         }
 
         public GraphTraversal2 Path()
         {
-            AddGremlinOperator(new GremlinPathOp());
+            this.AddOperator(new GremlinPathOp());
             return this;
         }
 
         public GraphTraversal2 Project(params string[] projectKeys)
         {
-            AddGremlinOperator(new GremlinProjectOp(projectKeys));
+            this.AddOperator(new GremlinProjectOp(projectKeys));
             return this;
         }
 
         public GraphTraversal2 Properties(params string[] propertyKeys)
         {
-            AddGremlinOperator(new GremlinPropertiesOp(propertyKeys));
+            this.AddOperator(new GremlinPropertiesOp(propertyKeys));
             return this;
         }
 
@@ -1017,41 +991,42 @@ namespace GraphView
         {
             if (keyValues.Length % 2 != 0) throw new Exception("The parameter of property should be even");
 
-            var lastOp = LastGremlinTranslationOp as GremlinAddEOp;
-            if (lastOp != null)
-            {
-                if (keyValues.Length > 0) throw new SyntaxErrorException("Only vertex can use PropertyCardinality.List and have meta properties");
-                GremlinProperty property = new GremlinProperty(cardinality, key, value, null);
-                lastOp.EdgeProperties.Add(property);
+            var lastOp = GetEndOp() as GremlinAddEOp;
+            if (lastOp != null) {
+                if (keyValues.Length > 0) throw new SyntaxErrorException("Edge can't have meta properties");
+                lastOp.EdgeProperties.Add(new GremlinProperty(cardinality, key, value, null));
             }
-            else
-            {
+            else {
                 Dictionary<string, object> metaProperties = new Dictionary<string, object>();
-                for (var i = 0; i < keyValues.Length; i += 2)
-                {
+                for (var i = 0; i < keyValues.Length; i += 2) {
                     metaProperties[keyValues[i] as string] = keyValues[i + 1];
                 }
                 GremlinProperty property = new GremlinProperty(cardinality, key, value, metaProperties);
-                AddGremlinOperator(new GremlinPropertyOp(property));
+                this.AddOperator(new GremlinPropertyOp(property));
             }
             return this;
         }
 
         public GraphTraversal2 PropertyMap(params string[] propertyKeys)
         {
-            AddGremlinOperator(new GremlinPropertyMapOp(propertyKeys));
+            this.AddOperator(new GremlinPropertyMapOp(propertyKeys));
             return this;
         }
 
         public GraphTraversal2 Range(int low, int high)
         {
-            AddGremlinOperator(new GremlinRangeOp(low, high, GremlinKeyword.Scope.Global));
+            this.AddOperator(new GremlinRangeGlobalOp(low, high));
             return this;
         }
 
         public GraphTraversal2 Range(GremlinKeyword.Scope scope, int low, int high)
         {
-            AddGremlinOperator(new GremlinRangeOp(low, high, scope));
+            if (scope == GremlinKeyword.Scope.Global) {
+                this.AddOperator(new GremlinRangeGlobalOp(low, high));
+            }
+            else {
+                this.AddOperator(new GremlinRangeLocalOp(low, high));
+            }
             return this;
         }
 
@@ -1059,96 +1034,121 @@ namespace GraphView
         {
             if (GetEndOp() is GremlinRepeatOp)
             {
+                //until().repeat()
+                //emit().repeat()
                 (GetEndOp() as GremlinRepeatOp).RepeatTraversal = repeatTraversal;
             }
             else
             {
-                AddGremlinOperator(new GremlinRepeatOp(repeatTraversal));
+                //repeat().until()
+                //repeat().emit()
+                this.AddOperator(new GremlinRepeatOp(repeatTraversal));
             }
             return this;
         }
 
         public GraphTraversal2 Sample(int amountToSample)
         {
-            AddGremlinOperator(new GremlinSampleOp(GremlinKeyword.Scope.Global, amountToSample));
+            this.AddOperator(new GremlinSampleGlobalOp(amountToSample));
             return this;
         }
 
         public GraphTraversal2 Sample(GremlinKeyword.Scope scope, int amountToSample)
         {
-            AddGremlinOperator(new GremlinSampleOp(scope, amountToSample));
+            if (scope == GremlinKeyword.Scope.Global) {
+                this.AddOperator(new GremlinSampleGlobalOp(amountToSample));
+            }
+            else {
+                this.AddOperator(new GremlinSampleLocalOp(amountToSample));
+            }
             return this;
         }
 
         public GraphTraversal2 Select(GremlinKeyword.Column column)
         {
-            AddGremlinOperator(new GremlinSelectColumnOp(column));
+            this.AddOperator(new GremlinSelectColumnOp(column));
             return this;
         }
 
         public GraphTraversal2 Select(GremlinKeyword.Pop pop, params string[] selectKeys)
         {
-            AddGremlinOperator(new GremlinSelectOp(pop, selectKeys));
+            this.AddOperator(new GremlinSelectOp(pop, selectKeys));
             return this;
         }
 
         public GraphTraversal2 Select(params string[] selectKeys)
         {
-            AddGremlinOperator(new GremlinSelectOp(GremlinKeyword.Pop.All, selectKeys));
+            this.AddOperator(new GremlinSelectOp(GremlinKeyword.Pop.All, selectKeys));
             return this;
         }
 
         public GraphTraversal2 SideEffect(GraphTraversal2 sideEffectTraversal)
         {
-            AddGremlinOperator(new GremlinSideEffectOp(sideEffectTraversal));
+            this.AddOperator(new GremlinSideEffectOp(sideEffectTraversal));
             return this;    
         }
 
         public GraphTraversal2 SimplePath()
         {
-            AddGremlinOperator(new GremlinSimplePathOp());
+            this.AddOperator(new GremlinSimplePathOp());
             return this;
         }
 
         public GraphTraversal2 Store(string sideEffectKey)
         {
-            AddGremlinOperator(new GremlinStoreOp(sideEffectKey));
+            this.AddOperator(new GremlinStoreOp(sideEffectKey));
             return this;
         }
 
         public GraphTraversal2 Sum()
         {
-            AddGremlinOperator(new GremlinSumOp(GremlinKeyword.Scope.Global));
+            this.AddOperator(new GremlinSumGlobalOp());
             return this;
         }
 
         public GraphTraversal2 Sum(GremlinKeyword.Scope scope)
         {
-            AddGremlinOperator(new GremlinSumOp(scope));
+            if (scope == GremlinKeyword.Scope.Global) {
+                this.AddOperator(new GremlinSumGlobalOp());
+
+            }
+            else {
+                this.AddOperator(new GremlinSumLocalOp());
+            }
             return this;
         }
 
         public GraphTraversal2 Tail()
         {
-            AddGremlinOperator(new GremlinRangeOp(0, 1, GremlinKeyword.Scope.Global, true));
+            this.AddOperator(new GremlinRangeGlobalOp(0, 1, true));
             return this;
         }
 
         public GraphTraversal2 Tail(int limit)
         {
-            AddGremlinOperator(new GremlinRangeOp(0, limit, GremlinKeyword.Scope.Global, true));
+            this.AddOperator(new GremlinRangeGlobalOp(0, limit, true));
             return this;
         }
 
         public GraphTraversal2 Tail(GremlinKeyword.Scope scope)
         {
-            AddGremlinOperator(new GremlinRangeOp(0, 1, scope, true));
+            if (scope == GremlinKeyword.Scope.Global) {
+                this.AddOperator(new GremlinRangeGlobalOp(0, 1, true));
+            }
+            else {
+                this.AddOperator(new GremlinRangeLocalOp(0, 1, true));
+            }
             return this;
         }
 
         public GraphTraversal2 Tail(GremlinKeyword.Scope scope, int limit)
         {
-            AddGremlinOperator(new GremlinRangeOp(0, limit, scope, true));
+            if (scope == GremlinKeyword.Scope.Global) {
+                this.AddOperator(new GremlinRangeGlobalOp(0, limit, true));
+            }
+            else {
+                this.AddOperator(new GremlinRangeLocalOp(0, limit, true));
+            }
             return this;
         }
 
@@ -1159,169 +1159,158 @@ namespace GraphView
 
         public GraphTraversal2 Times(int maxLoops)
         {
-            if (GetEndOp() is GremlinRepeatOp)
-            {
-                (GetEndOp() as GremlinRepeatOp).RepeatTimes = maxLoops;
+            GremlinRepeatOp lastOp = GetEndOp() as GremlinRepeatOp;
+            if (lastOp != null) {
+                lastOp.RepeatTimes = maxLoops;
             }
-            else
-            {
-                AddGremlinOperator(new GremlinRepeatOp());
-                (GetEndOp() as GremlinRepeatOp).RepeatTimes = maxLoops;
+            else {
+                this.AddOperator(new GremlinRepeatOp() { RepeatTimes = maxLoops });
             }
             return this;
         }
 
         public GraphTraversal2 To(string toLabel)
         {
-            GremlinAddEOp addEOp = LastGremlinTranslationOp as GremlinAddEOp;
-            if (addEOp != null)
-            {
+            GremlinAddEOp addEOp = GetEndOp() as GremlinAddEOp;
+            if (addEOp != null) {
                 addEOp.ToVertexTraversal = GraphTraversal2.__().Select(toLabel);
             }
-            else
-            {
-                throw new SyntaxErrorException($"{LastGremlinTranslationOp} cannot be cast to GremlinAddEOp");
+            else {
+                throw new SyntaxErrorException($"{GetEndOp()} cannot be cast to GremlinAddEOp");
             }
             return this;
         }
 
         public GraphTraversal2 To(GraphTraversal2 toVertex)
         {
-            GremlinAddEOp addEOp = LastGremlinTranslationOp as GremlinAddEOp;
-            if (addEOp != null)
-            {
+            GremlinAddEOp addEOp = GetEndOp() as GremlinAddEOp;
+            if (addEOp != null) {
                 addEOp.ToVertexTraversal = toVertex;
             }
-            else
-            {
-                throw new SyntaxErrorException($"{LastGremlinTranslationOp} cannot be cast to GremlinAddEOp");
+            else {
+                throw new SyntaxErrorException($"{GetEndOp()} cannot be cast to GremlinAddEOp");
             }
             return this;
         }
 
         public GraphTraversal2 Tree()
         {
-            AddGremlinOperator(new GremlinTreeOp());
+            this.AddOperator(new GremlinTreeOp());
             return this;
         }
 
         public GraphTraversal2 Tree(string sideEffectKey)
         {
-            AddGremlinOperator(new GremlinTreeOp(sideEffectKey));
+            this.AddOperator(new GremlinTreeOp(sideEffectKey));
             return this;
         }
 
         public GraphTraversal2 Unfold()
         {
-            AddGremlinOperator(new GremlinUnfoldOp());
+            this.AddOperator(new GremlinUnfoldOp());
             return this;
         }
 
         public GraphTraversal2 Union(params GraphTraversal2[] unionTraversals)
         {
-            AddGremlinOperator(new GremlinUnionOp(unionTraversals));
+            this.AddOperator(new GremlinUnionOp(unionTraversals));
             return this;
         }
 
         public GraphTraversal2 Until(Predicate untilPredicate)
         {
-            if (GetEndOp() is GremlinRepeatOp)
-            {
-                (GetEndOp() as GremlinRepeatOp).TerminationPredicate = untilPredicate;
+            GremlinRepeatOp lastOp = GetEndOp() as GremlinRepeatOp;
+            if (lastOp != null) {
+                lastOp.TerminationPredicate = untilPredicate;
             }
-            else
-            {
-                AddGremlinOperator(new GremlinRepeatOp());
-                (GetEndOp() as GremlinRepeatOp).TerminationPredicate = untilPredicate;
-                (GetEndOp() as GremlinRepeatOp).StartFromContext = true;
+            else {
+                this.AddOperator(new GremlinRepeatOp()
+                {
+                    TerminationPredicate = untilPredicate,
+                    StartFromContext = true
+                });
             }
             return this;
         }
 
         public GraphTraversal2 Until(GraphTraversal2 untilTraversal)
         {
-            if (GetEndOp() is GremlinRepeatOp)
-            {
-                (GetEndOp() as GremlinRepeatOp).TerminationTraversal = untilTraversal;
+            GremlinRepeatOp lastOp = GetEndOp() as GremlinRepeatOp;
+            if (lastOp != null) {
+                lastOp.TerminationTraversal = untilTraversal;
             }
-            else
-            {
-                AddGremlinOperator(new GremlinRepeatOp());
-                (GetEndOp() as GremlinRepeatOp).TerminationTraversal = untilTraversal;
-                (GetEndOp() as GremlinRepeatOp).StartFromContext = true;
+            else {
+                this.AddOperator(new GremlinRepeatOp()
+                {
+                    TerminationTraversal = untilTraversal,
+                    StartFromContext = true
+                });
             }
             return this;
         }
 
         public GraphTraversal2 V(params object[] vertexIdsOrElements)
         {
-            AddGremlinOperator(new GremlinVOp(vertexIdsOrElements));
+            this.AddOperator(new GremlinVOp(vertexIdsOrElements));
             return this;
         }
 
         public GraphTraversal2 V(List<object> vertexIdsOrElements)
         {
-            AddGremlinOperator(new GremlinVOp(vertexIdsOrElements));
+            this.AddOperator(new GremlinVOp(vertexIdsOrElements));
             return this;
         }
 
         public GraphTraversal2 Value()
         {
-            AddGremlinOperator(new GremlinValueOp());
+            this.AddOperator(new GremlinValueOp());
             return this;
         }
 
         public GraphTraversal2 ValueMap(params string[] propertyKeys)
         {
-            AddGremlinOperator(new GremlinValueMapOp(false, propertyKeys));
+            this.AddOperator(new GremlinValueMapOp(false, propertyKeys));
             return this;
         }
 
         public GraphTraversal2 ValueMap(bool isIncludeTokens, params string[] propertyKeys)
         {
-            AddGremlinOperator(new GremlinValueMapOp(isIncludeTokens, propertyKeys));
+            this.AddOperator(new GremlinValueMapOp(isIncludeTokens, propertyKeys));
             return this;
         }
 
         public GraphTraversal2 Values(params string[] propertyKeys)
         {
-            AddGremlinOperator(new GremlinValuesOp(propertyKeys));
+            this.AddOperator(new GremlinValuesOp(propertyKeys));
             return this;
         }
 
         public GraphTraversal2 Where(Predicate predicate)
         {
-            AddGremlinOperator(new GremlinWherePredicateOp(predicate));
+            this.AddOperator(new GremlinWherePredicateOp(predicate));
             return this;
         }
 
         public GraphTraversal2 Where(string startKey, Predicate predicate)
         {
-            AddGremlinOperator(new GremlinWherePredicateOp(startKey, predicate));
+            this.AddOperator(new GremlinWherePredicateOp(startKey, predicate));
             return this;
         }
 
         public GraphTraversal2 Where(GraphTraversal2 whereTraversal)
         {
-            AddGremlinOperator(new GremlinWhereTraversalOp(whereTraversal));
+            this.AddOperator(new GremlinWhereTraversalOp(whereTraversal));
             return this;
         }
 
         public static GraphTraversal2 __()
         {
-            GraphTraversal2 newGraphTraversal = new GraphTraversal2();
-            newGraphTraversal.AddGremlinOperator(new GremlinParentContextOp());
-            return newGraphTraversal;
+            GraphTraversal2 traversal = new GraphTraversal2();
+            traversal.AddOperator(new GremlinParentContextOp());
+            return traversal;
         }
 
-        public List<object> ToList()
-        {
-            //TODO
-            var str = LastGremlinTranslationOp.ToSqlScript().ToString();
-            return new List<object>() {1};
-        }
-
-        public IEnumerable<string> EvalGremlinTraversal(string sCSCode)
+        public IEnumerable<string> EvalTraversal(string sCSCode)
         {
             return EvalGraphTraversal(ConvertGremlinToGraphTraversalCode(sCSCode));    
         }
@@ -1444,11 +1433,11 @@ namespace GraphView
         private string getConnectionInfo()
         {
             List<string> connectionList = new List<string>();
-            connectionList.Add(addDoubleQuotes(Connection.DocDBUrl));
-            connectionList.Add(addDoubleQuotes(Connection.DocDBPrimaryKey));
-            connectionList.Add(addDoubleQuotes(Connection.DocDBDatabaseId));
-            connectionList.Add(addDoubleQuotes(Connection.DocDBCollectionId));
-            connectionList.Add(Connection.UseReverseEdges.ToString().ToLowerInvariant());
+            connectionList.Add(addDoubleQuotes(this.connection.DocDBUrl));
+            connectionList.Add(addDoubleQuotes(this.connection.DocDBPrimaryKey));
+            connectionList.Add(addDoubleQuotes(this.connection.DocDBDatabaseId));
+            connectionList.Add(addDoubleQuotes(this.connection.DocDBCollectionId));
+            connectionList.Add(this.connection.UseReverseEdges.ToString().ToLowerInvariant());
             return string.Join(",", connectionList);
         }
     }

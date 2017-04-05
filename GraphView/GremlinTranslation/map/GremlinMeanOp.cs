@@ -8,12 +8,10 @@ namespace GraphView
 {
     internal class GremlinMeanOp: GremlinTranslationOperator
     {
-        public GremlinKeyword.Scope Scope { get; set; }
+    }
 
-        public GremlinMeanOp(GremlinKeyword.Scope scope)
-        {
-            Scope = scope;
-        }
+    internal class GremlinMeanGlobalOp : GremlinMeanOp
+    {
         internal override GremlinToSqlContext GetContext()
         {
             GremlinToSqlContext inputContext = GetInputContext();
@@ -21,15 +19,21 @@ namespace GraphView
             {
                 throw new QueryCompilationException("The PivotVariable can't be null.");
             }
+            inputContext.PivotVariable.MeanGlobal(inputContext);
+            return inputContext;
+        }
+    }
 
-            if (Scope == GremlinKeyword.Scope.Global)
+    internal class GremlinMeanLocalOp : GremlinMeanOp
+    {
+        internal override GremlinToSqlContext GetContext()
+        {
+            GremlinToSqlContext inputContext = GetInputContext();
+            if (inputContext.PivotVariable == null)
             {
-                inputContext.PivotVariable.Mean(inputContext);
+                throw new QueryCompilationException("The PivotVariable can't be null.");
             }
-            else
-            {
-                inputContext.PivotVariable.MeanLocal(inputContext);
-            }
+            inputContext.PivotVariable.MeanLocal(inputContext);
 
             return inputContext;
         }

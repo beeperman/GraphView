@@ -33,7 +33,7 @@ namespace GraphView
         public override WTableReference ToTableReference()
         {
             List<WScalarExpression> parameters = new List<WScalarExpression>();
-            parameters.Add(InputVariable.DefaultProjection().ToScalarExpression());
+            parameters.Add(InputVariable.GetDefaultProjection().ToScalarExpression());
             parameters.Add(SqlUtil.GetValueExpr(Column == GremlinKeyword.Column.Keys ? "Keys" : "Values"));
             var tableRef = SqlUtil.GetFunctionTableReference(GremlinKeyword.func.SelectColumn, parameters, GetVariableName());
             return SqlUtil.GetCrossApplyTableReference(tableRef);
@@ -47,7 +47,7 @@ namespace GraphView
             VariableName = GremlinKeyword.Compose1TableDefaultName;
         }
 
-        internal override GremlinVariableProperty DefaultProjection()
+        internal override GremlinVariableProperty GetDefaultProjection()
         {
             return new GremlinVariableProperty(this, GremlinKeyword.TableDefaultColumnName);
         }

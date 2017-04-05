@@ -32,7 +32,7 @@ namespace GraphView
             bool isFetchAll = false;
             if (PropertyKeys.Count == 0)
             {
-                parameters.Add(InputVariable.DefaultProjection().ToScalarExpression());
+                parameters.Add(InputVariable.GetDefaultProjection().ToScalarExpression());
                 isFetchAll = true;
             }
             else

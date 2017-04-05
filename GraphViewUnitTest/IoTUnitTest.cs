@@ -68,7 +68,6 @@ namespace GraphViewUnitTest
             return result;
         }
 
-        [TestMethod]
         public void preProcessTheQueries()
         {
             int counter = 1;

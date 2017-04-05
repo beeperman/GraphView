@@ -581,7 +581,7 @@ namespace GraphView
                     ((JArray)edgeDocObject[KW_EDGEDOC_EDGE]).Last.Remove();
                     UploadOne(connection, edgeDocId, edgeDocObject, out tooLarge);
                     Debug.Assert(!tooLarge);
-
+                    
                     // Insert the edgeObject to one of the vertex's edge-documents
                     InsertEdgeObjectInternal(connection, vertexObject, null, newEdgeObject, isReverse, out edgeDocId);
                 }
@@ -601,7 +601,7 @@ namespace GraphView
             List<dynamic> edgeDocuments)
         {
             foreach (JObject edgeDocument in edgeDocuments) {
-
+                
                 string vertexId = (string)edgeDocument[KW_EDGEDOC_VERTEXID];
                 Dictionary<string, JObject> edgeDocSet;
                 edgeDict.TryGetValue(vertexId, out edgeDocSet);

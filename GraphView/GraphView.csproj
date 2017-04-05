@@ -65,6 +65,7 @@
   <ItemGroup>
     <Compile Include="CollectionType.cs" />
     <Compile Include="GraphViewDebugHelper.cs" />
+    <Compile Include="GraphViewExecutionRuntime\Bulking\BulkOperation.cs" />
     <Compile Include="GraphViewExecutionRuntime\CollectionOperator.cs" />
     <Compile Include="GraphViewExecutionRuntime\DbPortal.cs" />
     <Compile Include="GraphViewExecutionRuntime\AggregateOperator.cs" />
@@ -279,6 +280,10 @@
   </ItemGroup>
   <ItemGroup />
   <ItemGroup>
+    <Content Include="GraphViewExecutionRuntime\Bulking\DocDbWrapperScript.js" />
+    <Content Include="GraphViewExecutionRuntime\Bulking\BulkOperation.js">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="GraphViewExecutionRuntime\Schema.txt" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

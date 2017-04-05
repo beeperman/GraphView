@@ -30,6 +30,15 @@ namespace GraphView
             return this._currentEtags[docId];
         }
 
+        public string TryGetCurrentEtag(string docId)
+        {
+            Debug.Assert(docId != null);
+
+            string etag;
+            this._currentEtags.TryGetValue(docId, out etag);
+            return etag;
+        }
+
         public void RemoveEtag(string docId)
         {
             Debug.Assert(docId != null);
@@ -55,6 +64,14 @@ namespace GraphView
         {
             string docId = document.Id;
             string etag = document.ETag;
+            Debug.Assert(docId != null);
+            Debug.Assert(etag != null);
+
+            this._currentEtags[docId] = etag;
+        }
+
+        public void UpdateCurrentEtag(string docId, string etag)
+        {
             Debug.Assert(docId != null);
             Debug.Assert(etag != null);
 

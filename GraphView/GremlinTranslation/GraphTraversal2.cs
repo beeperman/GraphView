@@ -207,7 +207,7 @@ namespace GraphView
         {
             WSqlScript sqlScript = LastGremlinTranslationOp.ToSqlScript();
             SqlScript = sqlScript.ToString();
-
+            
             GraphViewExecutionOperator op = sqlScript.Batches[0].Compile(null, Connection);
             List<RawRecord> rawRecordResults = new List<RawRecord>();
             RawRecord outputRec = null;

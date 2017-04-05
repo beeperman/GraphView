@@ -37,11 +37,13 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Reflection;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.Client;
 using Newtonsoft.Json;
 using System.Threading;
+using GraphView.GraphViewExecutionRuntime.Bulking;
 using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
@@ -76,6 +78,7 @@ namespace GraphView
         public int EdgeSpillThreshold { get; private set; } = 0;
 
         internal VertexObjectCache VertexCache { get; }
+        internal BulkOperation BulkOperation { get; }
 
         internal string Identifier { get; }
 
@@ -87,14 +90,12 @@ namespace GraphView
 
         internal CollectionType CollectionType { get; private set; }
 
-        private bool useReverseEdges;
-
         /// <summary>
         /// Warning: This is actually a collection meta property.
         /// Once this flag is set to false and data modifications are applied on a collection, 
         /// then it should never be set to true again.
         /// </summary>
-        public bool UseReverseEdges => this.useReverseEdges;
+        public bool UseReverseEdges { get; }
 
         /// <summary>
         /// Initializes a new connection to DocDB.
@@ -124,7 +125,11 @@ namespace GraphView
             this.DocDBPrimaryKey = docDBAuthorizationKey;
             this.DocDBDatabaseId = docDBDatabaseID;
             this.DocDBCollectionId = docDBCollectionID;
-            this.useReverseEdges = useReverseEdges;
+            this.UseReverseEdges = useReverseEdges;
+
+            this.Identifier = $"{docDBEndpointUrl}\0{docDBDatabaseID}\0{docDBCollectionID}";
+            this.VertexCache = new VertexObjectCache(this);
+            this.BulkOperation = new BulkOperation(this);
 
             ConnectionPolicy connectionPolicy = new ConnectionPolicy {
                 ConnectionMode = ConnectionMode.Direct,
@@ -188,8 +193,6 @@ namespace GraphView
                 }
             }
 
-            this.Identifier = $"{docDBEndpointUrl}\0{docDBDatabaseID}\0{docDBCollectionID}";
-            this.VertexCache = new VertexObjectCache(this);
 
             // Retrieve metadata from DocDB
             JObject metaObject = RetrieveDocumentById("metadata");
@@ -242,7 +245,7 @@ namespace GraphView
         ///   - collectionType = PARTITIONED: the newly created collection is PARTITIONED
         ///   - collectionType = UNDEFINED: an exception is thrown!
         /// </summary>
-        public void ResetCollection(CollectionType collectionType = CollectionType.STANDARD, int? edgeSpillThreshold = null)
+        public void ResetCollection(CollectionType collectionType = CollectionType.STANDARD, int? edgeSpillThreshold = 1)
         {
             EnsureDatabaseExist();
 
@@ -293,6 +296,19 @@ namespace GraphView
                 ["_edgeSpillThreshold"] = jEdgeSpillThreshold
             };
             CreateDocumentAsync(metaObject).Wait();
+
+            //
+            // Upload stored procedure `BulkOperation`
+            //
+            StoredProcedure storedProcedure = new StoredProcedure() {
+                Id = "BulkOperation",
+                Body = File.ReadAllText("GraphViewExecutionRuntime\\Bulking\\BulkOperation.js", Encoding.UTF8)
+            };
+            this.DocDBClient.CreateStoredProcedureAsync(
+                this._docDBCollectionUri,
+                storedProcedure, null
+            ).Wait();
+
 
             Trace.WriteLine($"[ResetCollection] Database/Collection {this.DocDBDatabaseId}/{this.DocDBCollectionId} has been reset.");
         }
@@ -485,6 +501,15 @@ namespace GraphView
             {
                 return null;
             }
+        }
+
+        internal string ExecuteSProcBulkOperation(params dynamic[] parameters)
+        {
+            string responseBody = this.DocDBClient.ExecuteStoredProcedureAsync<string>(
+                UriFactory.CreateStoredProcedureUri(this.DocDBDatabaseId, this.DocDBCollectionId, "BulkOperation"),
+                parameters
+                ).Result.Response;
+            return responseBody;
         }
 
 

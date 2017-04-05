@@ -114,9 +114,6 @@ namespace GraphView
                         firstEntry = false;
                     }
 
-                    //
-                    // No results are pulled from the execution operator
-                    //
                     if (firstEntry && !firstCall) {
                         return false;
                     }
@@ -1294,19 +1291,19 @@ namespace GraphView
 
         public GraphTraversal2 Where(Predicate predicate)
         {
-            AddGremlinOperator(new GremlinWhereOp(predicate));
+            AddGremlinOperator(new GremlinWherePredicateOp(predicate));
             return this;
         }
 
         public GraphTraversal2 Where(string startKey, Predicate predicate)
         {
-            AddGremlinOperator(new GremlinWhereOp(startKey, predicate));
+            AddGremlinOperator(new GremlinWherePredicateOp(startKey, predicate));
             return this;
         }
 
         public GraphTraversal2 Where(GraphTraversal2 whereTraversal)
         {
-            AddGremlinOperator(new GremlinWhereOp(whereTraversal));
+            AddGremlinOperator(new GremlinWhereTraversalOp(whereTraversal));
             return this;
         }
 

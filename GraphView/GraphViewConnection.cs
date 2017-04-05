@@ -43,7 +43,6 @@ using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.Client;
 using Newtonsoft.Json;
 using System.Threading;
-using GraphView.GraphViewExecutionRuntime.Bulking;
 using Newtonsoft.Json.Converters;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
@@ -78,7 +77,7 @@ namespace GraphView
         public int EdgeSpillThreshold { get; private set; } = 0;
 
         internal VertexObjectCache VertexCache { get; }
-        internal BulkOperation BulkOperation { get; }
+        internal Bulk Bulk { get; }
 
         internal string Identifier { get; }
 
@@ -129,7 +128,7 @@ namespace GraphView
 
             this.Identifier = $"{docDBEndpointUrl}\0{docDBDatabaseID}\0{docDBCollectionID}";
             this.VertexCache = new VertexObjectCache(this);
-            this.BulkOperation = new BulkOperation(this);
+            this.Bulk = new Bulk(this);
 
             ConnectionPolicy connectionPolicy = new ConnectionPolicy {
                 ConnectionMode = ConnectionMode.Direct,

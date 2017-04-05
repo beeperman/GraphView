@@ -65,7 +65,7 @@
   <ItemGroup>
     <Compile Include="CollectionType.cs" />
     <Compile Include="GraphViewDebugHelper.cs" />
-    <Compile Include="GraphViewExecutionRuntime\Bulking\BulkOperation.cs" />
+    <Compile Include="GraphViewExecutionRuntime\Bulking\Bulk.cs" />
     <Compile Include="GraphViewExecutionRuntime\CollectionOperator.cs" />
     <Compile Include="GraphViewExecutionRuntime\DbPortal.cs" />
     <Compile Include="GraphViewExecutionRuntime\AggregateOperator.cs" />

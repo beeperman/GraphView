@@ -52,8 +52,8 @@ function BulkOperation(opArray, etagsObject) {
 
     function UPDATE_ETAG(documentId, documentEtag) {
         ASSERT(typeof documentId === "string" && documentId, documentId);
-        ASSERT(typeof documentEtag === "string" && documentEtag, documentEtag);
-        DEBUG("Update Etag: '" + documentId + "' = '" + documentEtag + "'");
+        ASSERT(documentEtag == null || (typeof documentEtag === "string" && documentEtag, documentEtag));
+        //DEBUG("Update Etag: '" + documentId + "' = '" + documentEtag + "'");
         __respObject.Etags[documentId] = documentEtag;
     }
 
@@ -181,11 +181,11 @@ function BulkOperation(opArray, etagsObject) {
     for (var tmpDocId in etagsObject) {
         if (etagsObject.hasOwnProperty(tmpDocId)) {
             var tmpEtag = etagsObject[tmpDocId];
-            ASSERT(typeof tmpEtag === "string" && tmpEtag);
+            ASSERT(tmpEtag === null || (typeof tmpEtag === "string" && tmpEtag));
             UPDATE_ETAG(tmpDocId, tmpEtag);
         }
     }
-    DEBUG("Prepare done");
+    //DEBUG("Prepare done");
 
 
     function DispatchOperation(index, operation) {
@@ -207,7 +207,8 @@ function BulkOperation(opArray, etagsObject) {
                         resolve(DUMMY);
                     });
             });
-        } else if (operation["op"] === "AddEdge") {
+        }
+        else if (operation["op"] === "AddEdge") {
             /* Parameter schema: 
                 {
                     "op": "AddEdge",
@@ -245,7 +246,89 @@ function BulkOperation(opArray, etagsObject) {
                         resolve(DUMMY);
                     });
             });
-        } else {
+        }
+        else if (operation["op"] === "DropVertexProperty") {
+            /* Parameter schema: 
+                {
+                    "op": "DropVertexProperty",
+                    "vertexId": ...,
+                    "propertyName": ...,
+                }
+               Response content:
+                {
+                    "found": true/false
+                }
+            */
+            return new Promise(function (resolve, reject) {
+                DropVertexProperty(
+                    operation["vertexId"],
+                    operation["propertyName"],
+                    function (found) {
+                        var content = {
+                            "found": found
+                        };
+                        SUCCESS(index, content);
+                        resolve(DUMMY);
+                    });
+            });
+        }
+        else if (operation["op"] === "DropVertexSingleProperty") {
+            /* Parameter schema: 
+                {
+                    "op": "DropVertexProperty",
+                    "vertexId": ...,
+                    "propertyName": ...,
+                    "singlePropertyId": ...,
+                }
+               Response content:
+                {
+                    "found": true/false
+                }
+            */
+            return new Promise(function (resolve, reject) {
+                DropVertexSingleProperty(
+                    operation["vertexId"],
+                    operation["propertyName"],
+                    operation["singlePropertyId"],
+                    function (found) {
+                        var content = {
+                            "found": found
+                        };
+                        SUCCESS(index, content);
+                        resolve(DUMMY);
+                    });
+            });
+        }
+        else if (operation["op"] === "DropVertexSinglePropertyMetaProperty") {
+            /* Parameter schema: 
+                {
+                    "op": "DropVertexProperty",
+                    "vertexId": ...,
+                    "propertyName": ...,
+                    "singlePropertyId": ...,
+                    "metaName": ...,
+                }
+               Response content:
+                {
+                    "found": true/false
+                }
+            */
+            return new Promise(function (resolve, reject) {
+                DropVertexSinglePropertyMetaProperty(
+                    operation["vertexId"],
+                    operation["propertyName"],
+                    operation["singlePropertyId"],
+                    operation["metaName"],
+                    function (found) {
+                        var content = {
+                            "found": found
+                        };
+                        SUCCESS(index, content);
+                        resolve(DUMMY);
+                    });
+            });
+        }
+        else {
             ERROR(Status.InternalError, "Unknown operation string: " + operation["op"]);
             return null;  // Will not reach here!
         }
@@ -376,6 +459,131 @@ function BulkOperation(opArray, etagsObject) {
 
     /**
      * 
+     * @param {string} vertexId 
+     * @param {string} propertyName 
+     * @param {function(boolean)} callback - Returns whether this property is found?
+     * @returns {} 
+     */
+    function DropVertexProperty(vertexId, propertyName, callback) {
+        ASSERT(typeof vertexId === "string" && vertexId);
+        ASSERT(typeof propertyName === "string" && propertyName);
+        ASSERT(typeof callback === "function" && callback);
+
+        RetrieveDocumentById(
+            vertexId,
+            function(vertexDocument) {
+                var found = !(vertexDocument[propertyName] === undefined);
+                if (found) {
+                    delete vertexDocument[propertyName];
+                    TryReplaceDocument(
+                        vertexDocument,
+                        function(dummyTooLarge, newVertexDocument) {
+                            ASSERT(dummyTooLarge === false);
+                            callback(true);
+                        });
+                } else {
+                    callback(false);
+                }
+            });
+    }
+
+
+    function DropVertexSingleProperty(vertexId, propertyName, singlePropertyId, callback) {
+        ASSERT(typeof vertexId === "string" && vertexId);
+        ASSERT(typeof propertyName === "string" && propertyName);
+        ASSERT(typeof singlePropertyId === "string" && singlePropertyId);
+        ASSERT(typeof callback === "function" && callback);
+
+        RetrieveDocumentById(
+            vertexId,
+            function (vertexDocument) {
+                var found = !(vertexDocument[propertyName] === undefined);
+                if (found) {
+                    found = false;
+                    var singlePropArray = vertexDocument[propertyName];
+                    for (var index = 0; index < singlePropArray.length; ++index) {
+                        if (singlePropArray[index]["id"] === singlePropertyId) {
+                            if (singlePropArray.length === 1) {
+                                // If this single property is not duplicated, delete the whole vertex property!
+                                delete vertexDocument[propertyName];
+                            } else {
+                                // singlePropArray.length > 1, just delete this single-property
+                                delete singlePropArray[index];
+                            }
+                            found = true;
+                            break;
+                        }
+                    }
+
+                    if (found) {
+                        TryReplaceDocument(
+                            vertexDocument,
+                            function (dummyTooLarge, newVertexDocument) {
+                                ASSERT(dummyTooLarge === false);
+                                callback(true);
+                            });
+                    } else {
+                        callback(false);
+                    }
+                } else {
+                    callback(false);
+                }
+            });
+    }
+
+
+    function DropVertexSinglePropertyMetaProperty(vertexId, propertyName, singlePropertyId, metaName, callback) {
+
+        ASSERT(typeof vertexId === "string" && vertexId);
+        ASSERT(typeof propertyName === "string" && propertyName);
+        ASSERT(typeof singlePropertyId === "string" && singlePropertyId);
+        ASSERT(typeof metaName === "string" && metaName);
+        ASSERT(typeof callback === "function" && callback);
+
+        RetrieveDocumentById(
+            vertexId,
+            function(vertexDocument) {
+
+                var found = !(vertexDocument[propertyName] === undefined);
+                if (found) {
+                    var singlePropArray = vertexDocument[propertyName];
+                    var singleProp = null;
+                    for (var index = 0; index < singlePropArray.length; ++index) {
+                        if (singlePropArray[index]["id"] === singlePropertyId) {
+                            singleProp = singlePropArray[index];
+                            break;
+                        }
+                    }
+
+                    if (singleProp !== null) {
+                        ASSERT(singleProp["_meta"] !== undefined);
+                        found = (singleProp["_meta"][metaName] !== undefined);
+
+                        if (found) {
+                            delete (singleProp["_meta"])[metaName];
+                            TryReplaceDocument(
+                                vertexDocument,
+                                function(dummyTooLarge, newVertexDocument) {
+                                    ASSERT(dummyTooLarge === false);
+                                    callback(true);
+                                });
+                        } else {
+                            callback(false);
+                        }
+                    } else {
+                        callback(false);
+                    }
+                } else {
+                    callback(false);
+                }
+            });
+    }
+
+
+    /**
+     * Try to add an edge to the edge document.
+     * If too large, create a new edge document to store the edge.
+     * 
      * @param {Object} edgeObject 
      * @param {string} edgeDocId 
      * @param {function(string)} callback - The edge is added to which edge document?
@@ -447,6 +655,7 @@ function BulkOperation(opArray, etagsObject) {
     }
 
     /**
+     * Spill a not-spilled vertex
      * 
      * @param {} vertexDocument 
      * @param {} isReverse 
@@ -532,7 +741,7 @@ function BulkOperation(opArray, etagsObject) {
      * Try to replace an existing document with a new one.
      * 
      * @param {Object} newDocument - The new document object
-     * @param {function(boolean, Object)} replaceCallback - The callback indicating whether the document is too large! 
+     * @param {function(boolean, object)} replaceCallback - The callback indicating whether the document is too large! 
      *        The parameter is `true` if the replacement failed because the new document is too large
      * @returns {} 
      */
@@ -558,7 +767,8 @@ function BulkOperation(opArray, etagsObject) {
                 if (error) {
                     if (error.number === ErrorCodes.RequestEntityTooLarge) {
                         // This document is too large!
-                        replaceCallback(true, resource);
+                        ASSERT(resource === null);
+                        replaceCallback(true, null);
                     } else {
                         // This operations failed due to other reasons
                         ERROR(error);
@@ -566,7 +776,7 @@ function BulkOperation(opArray, etagsObject) {
                 } else {
                     // This document is successfully uploaded
                     UPDATE_ETAG(resource["id"], resource["_etag"]);
-                    replaceCallback(false, null);
+                    replaceCallback(false, resource);
                 }
             }
         );

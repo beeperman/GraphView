@@ -383,6 +383,12 @@ namespace GraphView
             this.Order = new List<FieldObject>();
         }
 
+        public MapField(MapField rhs)
+        {
+            this.map = new Dictionary<FieldObject, FieldObject>(rhs.map);
+            this.Order = new List<FieldObject>(rhs.Order);
+        }
+
         public MapField(int capacity)
         {
             this.map = new Dictionary<FieldObject, FieldObject>(capacity);
@@ -429,6 +435,16 @@ namespace GraphView
             this.map.Remove(this.Order[index]);
             this.Order.RemoveAt(index);
             return true;
+        }
+
+        public List<EntryField> EntrySet
+        {
+            get
+            {
+                return
+                    this.Order.Select(
+                        key => new EntryField(new KeyValuePair<FieldObject, FieldObject>(key, this.map[key]))).ToList();
+            }
         }
 
         public FieldObject this[FieldObject key]
@@ -539,8 +555,8 @@ namespace GraphView
 
         public IEnumerator<EntryField> GetEnumerator()
         {
-            foreach (KeyValuePair<FieldObject, FieldObject> keyValuePair in map) {
-                yield return new EntryField(keyValuePair);
+            foreach (FieldObject key in this.Order) {
+                yield return new EntryField(new KeyValuePair<FieldObject, FieldObject>(key, this.map[key]));
             }
         }
 

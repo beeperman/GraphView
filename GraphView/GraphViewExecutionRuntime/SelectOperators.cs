@@ -3631,6 +3631,106 @@ namespace GraphView
         }
     }
 
+    internal class SampleLocalOperator : GraphViewExecutionOperator
+    {
+        private readonly GraphViewExecutionOperator inputOp;
+        private readonly int inputCollectionIndex;
+        private readonly int amountToSample;
+
+        private readonly List<string> populateColumns;
+        private readonly Random random;
+
+        internal SampleLocalOperator(
+            GraphViewExecutionOperator inputOp,
+            int inputCollectionIndex,
+            int amountToSample,
+            List<string> populateColumns)
+        {
+            this.inputOp = inputOp;
+            this.inputCollectionIndex = inputCollectionIndex;
+            this.amountToSample = amountToSample;
+            this.populateColumns = populateColumns;
+            this.random = new Random();
+
+            this.Open();
+        }
+
+        public override RawRecord Next()
+        {
+            RawRecord srcRecord = null;
+
+            while (this.inputOp.State() && (srcRecord = this.inputOp.Next()) != null)
+            {
+                RawRecord newRecord = new RawRecord(srcRecord);
+
+                FieldObject inputObject = srcRecord[this.inputCollectionIndex];
+                FieldObject sampledObject;
+                if (inputObject is CollectionField)
+                {
+                    CollectionField inputCollection = (CollectionField)inputObject;
+                    CollectionField newCollection;
+
+                    if (inputCollection.Collection.Count <= this.amountToSample) {
+                        newCollection = new CollectionField(inputCollection);
+                    }
+                    else
+                    {
+                        List<FieldObject> tempCollection = new List<FieldObject>(inputCollection.Collection);
+                        newCollection = new CollectionField();
+
+                        while (newCollection.Collection.Count < this.amountToSample) {
+                            int pickedIndex = this.random.Next(0, tempCollection.Count);
+                            FieldObject pickedObject = tempCollection[pickedIndex];
+                            tempCollection.RemoveAt(pickedIndex);
+                            newCollection.Collection.Add(pickedObject);
+                        }
+                    }
+
+                    sampledObject = newCollection;
+                }
+                else if (inputObject is MapField)
+                {
+                    MapField inputMap = inputObject as MapField;
+                    MapField newMap;
+
+                    if (inputMap.Count <= this.amountToSample) {
+                        newMap = new MapField(inputMap);
+                    }
+                    else
+                    {
+                        List<EntryField> tempEntrySet = inputMap.EntrySet;
+                        newMap = new MapField();
+                        while (newMap.Count < this.amountToSample)
+                        {
+                            int pickedIndex = this.random.Next(0, tempEntrySet.Count);
+                            EntryField pickedEntry = tempEntrySet[pickedIndex];
+                            tempEntrySet.RemoveAt(pickedIndex);
+                            newMap.Add(pickedEntry.Key, pickedEntry.Value);
+                        }
+                    }
+
+                    sampledObject = newMap;
+                }
+                else {
+                    sampledObject = inputObject;
+                }
+
+                RawRecord flatRawRecord = sampledObject.FlatToRawRecord(this.populateColumns);
+                newRecord.Append(flatRawRecord);
+                return newRecord;
+            }
+
+            this.Close();
+            return null;
+        }
+
+        public override void ResetState()
+        {
+            this.inputOp.ResetState();
+            this.Open();
+        }
+    }
+
     internal class Decompose1Operator : GraphViewExecutionOperator
     {
         private readonly GraphViewExecutionOperator inputOp;

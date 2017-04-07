@@ -3390,5 +3390,37 @@ namespace GraphView
             return selectOneOp;
         }
     }
+
+    partial class WSampleLocalTableReference
+    {
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        {
+            WColumnReferenceExpression inputCollection = Parameters[0] as WColumnReferenceExpression;
+            Debug.Assert(inputCollection != null, "inputCollection != null");
+            int inputCollectionIndex = context.LocateColumnReference(inputCollection);
+            int amountToSample = int.Parse((Parameters[1] as WValueExpression).Value);
+
+            List<string> populateColumns = new List<string> { GraphViewKeywords.KW_TABLE_DEFAULT_COLUMN_NAME };
+            for (int i = 2; i < this.Parameters.Count; i++)
+            {
+                WValueExpression populateColumn = this.Parameters[i] as WValueExpression;
+                Debug.Assert(populateColumn != null, "populateColumn != null");
+
+                if (populateColumn.Value.Equals(GraphViewKeywords.KW_TABLE_DEFAULT_COLUMN_NAME)) {
+                    continue;
+                }
+                populateColumns.Add(populateColumn.Value);
+            }
+
+            SampleLocalOperator sampleLocalOp = new SampleLocalOperator(context.CurrentExecutionOperator,
+                inputCollectionIndex, amountToSample, populateColumns);
+            context.CurrentExecutionOperator = sampleLocalOp;
+            foreach (string columnName in populateColumns) {
+                context.AddField(Alias.Value, columnName, ColumnGraphType.Value);
+            }
+
+            return sampleLocalOp;
+        }
+    }
 }
 

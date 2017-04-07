@@ -797,17 +797,17 @@ namespace GraphView
 
         internal virtual void SampleGlobal(GremlinToSqlContext currentContext, int amountToSample, GremlinToSqlContext probabilityContext)
         {
-            GremlinSampleVariable newVariable = new GremlinSampleVariable(amountToSample, probabilityContext);
+            GremlinSampleGlobalVariable newVariable = new GremlinSampleGlobalVariable(amountToSample, probabilityContext);
             currentContext.VariableList.Add(newVariable);
             currentContext.TableReferences.Add(newVariable);
         }
 
-        internal virtual void SampleLocal(GremlinToSqlContext currentContext, int amountToSample, GremlinToSqlContext probabilityContext)
+        internal virtual void SampleLocal(GremlinToSqlContext currentContext, int amountToSample)
         {
-            GremlinSampleVariable newVariable = new GremlinSampleVariable(amountToSample, probabilityContext);
+            GremlinSampleLocalVariable newVariable = new GremlinSampleLocalVariable(this, amountToSample);
             currentContext.VariableList.Add(newVariable);
             currentContext.TableReferences.Add(newVariable);
-            //TODO: set pivotVariable when scope is local, need to sync with compilation and physical operator
+            currentContext.SetPivotVariable(newVariable);
         }
 
         internal virtual void SelectColumn(GremlinToSqlContext currentContext, GremlinKeyword.Column column)

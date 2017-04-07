@@ -10,7 +10,6 @@ namespace GraphView
     internal class GremlinSampleOp: GremlinTranslationOperator
     {
         public int AmountToSample { get; set; }
-        public GraphTraversal2 ProbabilityTraversal { get; set; }
 
         public GremlinSampleOp(int amountToSample)
         {
@@ -20,6 +19,8 @@ namespace GraphView
 
     internal class GremlinSampleGlobalOp : GremlinSampleOp
     {
+        public GraphTraversal2 ProbabilityTraversal { get; set; }
+
         public GremlinSampleGlobalOp(int amountToSample): base(amountToSample)
         {
         }
@@ -43,6 +44,11 @@ namespace GraphView
 
             return inputContext;
         }
+
+        public override void ModulateBy(GraphTraversal2 traversal)
+        {
+            this.ProbabilityTraversal = traversal;
+        }
     }
 
     internal class GremlinSampleLocalOp : GremlinSampleOp
@@ -59,21 +65,9 @@ namespace GraphView
                 throw new QueryCompilationException("The PivotVariable can't be null.");
             }
 
-            GremlinToSqlContext probabilityContext = null;
-            if (this.ProbabilityTraversal != null)
-            {
-                this.ProbabilityTraversal.GetStartOp().InheritedVariableFromParent(inputContext);
-                probabilityContext = this.ProbabilityTraversal.GetEndOp().GetContext();
-            }
-
-            inputContext.PivotVariable.SampleLocal(inputContext, this.AmountToSample, probabilityContext);
+            inputContext.PivotVariable.SampleLocal(inputContext, this.AmountToSample);
 
             return inputContext;
-        }
-
-        public override void ModulateBy(GraphTraversal2 traversal)
-        {
-            this.ProbabilityTraversal = traversal;
         }
     }
 }

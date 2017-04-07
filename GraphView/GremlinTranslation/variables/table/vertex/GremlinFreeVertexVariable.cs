@@ -192,11 +192,10 @@ namespace GraphView
             base.SampleGlobal(currentContext, amountToSample, probabilityContext);
         }
 
-        internal override void SampleLocal(GremlinToSqlContext currentContext, int amountToSample,
-            GremlinToSqlContext probabilityContext)
+        internal override void SampleLocal(GremlinToSqlContext currentContext, int amountToSample)
         {
             this.isTraversalToBound = true;
-            base.SampleLocal(currentContext, amountToSample, probabilityContext);
+            base.SampleLocal(currentContext, amountToSample);
         }
 
         internal override void SideEffect(GremlinToSqlContext currentContext, GremlinToSqlContext sideEffectContext)

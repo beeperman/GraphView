@@ -6,7 +6,7 @@ VertexDocument (Small):
 	"_edge": [									// KW_VERTEX_EDGE
 		<EdgeObject>, ...
 	],
-	"_reverse_edge": [							// KW_VERTEX_REVEDGE
+	"_reverse_edge": [							// KW_VERTEX_REV_EDGE
 		<RevEdgeObject>, ...
 	],
 

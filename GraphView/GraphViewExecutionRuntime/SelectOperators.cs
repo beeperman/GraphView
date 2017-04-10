@@ -3556,78 +3556,79 @@ namespace GraphView
 
     internal class SampleOperator : GraphViewExecutionOperator
     {
-        private readonly GraphViewExecutionOperator _inputOp;
-        private readonly long _amountToSample;
-        private readonly ScalarFunction _byFunction;  // Can be null if no "by" step
-        private readonly Random _random;
+        private readonly GraphViewExecutionOperator inputOp;
+        private readonly long amountToSample;
+        private readonly ScalarFunction byFunction;  // Can be null if no "by" step
+        private readonly Random random;
 
-        private readonly List<RawRecord> _inputRecords;
-        private readonly List<double> _inputProperties;
-        private int _nextIndex;
+        private readonly List<RawRecord> inputRecords;
+        private readonly List<double> inputProperties;
+        private int nextIndex;
 
         public SampleOperator(
             GraphViewExecutionOperator inputOp,
             long amoutToSample,
             ScalarFunction byFunction)
         {
-            this._inputOp = inputOp;
-            this._amountToSample = amoutToSample;
-            this._byFunction = byFunction;  // Can be null if no "by" step
-            this._random = new Random();
+            this.inputOp = inputOp;
+            this.amountToSample = amoutToSample;
+            this.byFunction = byFunction;  // Can be null if no "by" step
+            this.random = new Random();
 
-            this._inputRecords = new List<RawRecord>();
-            this._inputProperties = new List<double>();
-            this._nextIndex = 0;
-            Open();
+            this.inputRecords = new List<RawRecord>();
+            this.inputProperties = new List<double>();
+            this.nextIndex = 0;
+            this.Open();
         }
 
         public override RawRecord Next()
         {
-            if (this._nextIndex == 0) {
-                while (this._inputOp.State()) {
-                    RawRecord current = this._inputOp.Next();
+            if (this.nextIndex == 0) {
+                while (this.inputOp.State()) {
+                    RawRecord current = this.inputOp.Next();
                     if (current == null) break;
 
-                    this._inputRecords.Add(current);
-                    if (this._byFunction != null) {
-                        this._inputProperties.Add(double.Parse(this._byFunction.Evaluate(current).ToValue));
+                    this.inputRecords.Add(current);
+                    if (this.byFunction != null) {
+                        this.inputProperties.Add(double.Parse(this.byFunction.Evaluate(current).ToValue));
                     }
                 }
             }
 
             // Return nothing if sample amount <= 0
-            if (this._amountToSample <= 0) {
-                Close();
+            if (this.amountToSample <= 0) {
+                this.Close();
                 return null;
             }
 
             // Return all if sample amount > amount of inputs
-            if (this._amountToSample >= this._inputRecords.Count) {
-                if (this._nextIndex == this._inputRecords.Count - 1) {
-                    Close();
+            if (this.amountToSample >= this.inputRecords.Count) {
+                if (this.nextIndex == this.inputRecords.Count) {
+                    this.Close();
+                    return null;
                 }
-                return this._inputRecords[this._nextIndex++];
+                return this.inputRecords[this.nextIndex++];
             }
 
             // Sample!
-            if (this._nextIndex < this._amountToSample) {
+            if (this.nextIndex < this.amountToSample) {
                 
                 // TODO: Implement the sampling algorithm!
-                return this._inputRecords[this._nextIndex++];
+                return this.inputRecords[this.nextIndex++];
             }
 
-            Close();
+            this.Close();
             return null;
         }
 
         public override void ResetState()
         {
-            this._inputOp.ResetState();
+            this.inputOp.ResetState();
 
-            this._inputRecords.Clear();
-            this._inputProperties.Clear();
-            this._nextIndex = 0;
-            Open();
+            this.inputRecords.Clear();
+            this.inputProperties.Clear();
+            this.nextIndex = 0;
+            this.Open();
         }
     }
 

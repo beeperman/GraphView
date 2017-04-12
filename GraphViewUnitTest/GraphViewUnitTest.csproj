@@ -106,6 +106,7 @@
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\ConstantTest.cs" />
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\CountTest.cs" />
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\SideEffect\AggregateTest.cs" />
+    <Compile Include="Gremlin\ProcessTests\Traversal\Step\SideEffect\GroupCountTest.cs" />
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\SideEffect\GroupTest.cs" />
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\MaxTest.cs" />
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\MeanTest.cs" />

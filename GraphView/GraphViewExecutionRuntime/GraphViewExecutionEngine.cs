@@ -1250,7 +1250,7 @@ namespace GraphView
         }
 
 
-        public void UpdateEdgeProperty(JProperty property, EdgeField edgeField)
+        public void UpdateEdgeProperty(JProperty property)
         {
             EdgePropertyField propertyField;
             if (this.EdgeProperties.TryGetValue(property.Name, out propertyField)) {
@@ -1543,12 +1543,14 @@ namespace GraphView
             }
         }
 
-        // That is, the vertex document
-        public JObject VertexJObject { get; }
-
         public AdjacencyListField AdjacencyList { get; }
 
         public AdjacencyListField RevAdjacencyList { get; }
+
+        public string LatestOutEdgeDocumentId { get; set; }
+
+        public string LatestInEdgeDocumentId { get; set; }
+
 
 
         // <Property Name, VertexPropertyField>
@@ -1560,19 +1562,9 @@ namespace GraphView
         /// </summary>
         public Dictionary<string, ValuePropertyField> VertexMetaProperties { get; } = new Dictionary<string, ValuePropertyField>();
 
-        public string VertexId {
-            get {
-                Debug.Assert(this.VertexMetaProperties.ContainsKey(KW_DOC_ID));
-                return this.VertexMetaProperties[KW_DOC_ID].PropertyValue;
-            }
-        }
+        public string VertexId { get; }
 
-        public string VertexLabel {
-            get {
-                Debug.Assert(this.VertexMetaProperties.ContainsKey(KW_VERTEX_LABEL));
-                return this.VertexMetaProperties[KW_VERTEX_LABEL].PropertyValue;
-            }
-        }
+        public string VertexLabel { get; }
 
 
         /// <summary>
@@ -1650,20 +1642,20 @@ namespace GraphView
         public VertexField(GraphViewConnection connection, JObject vertexObject)
         {
             Debug.Assert(vertexObject != null);
-            this.VertexJObject = vertexObject;
             this.VertexProperties = new Dictionary<string, VertexPropertyField>();
 
 
             //
             // Now constuct this vertex field
             //
-            string vertexId = (string)this.VertexJObject[KW_DOC_ID];
-            string vertexLabel = (string)this.VertexJObject[KW_VERTEX_LABEL];
+            this.VertexId = (string)vertexObject[KW_DOC_ID];
+            this.VertexLabel = (string)vertexObject[KW_VERTEX_LABEL];
+
 
             JArray forwardAdjList = null;
             JArray backwardAdjList = null;
 
-            foreach (JProperty property in this.VertexJObject.Properties())
+            foreach (JProperty property in vertexObject.Properties())
             {
                 // For meta-properties
                 // "id", "label", "partition", "is(rev)spilled"
@@ -1714,14 +1706,34 @@ namespace GraphView
             // Construct forward & backwark adjacency list
             //
             Debug.Assert(forwardAdjList != null);
+            if (EdgeDocumentHelper.IsSpilledVertex(vertexObject, false))
+            {
+                Debug.Assert(forwardAdjList.Count == 1);
+                this.LatestOutEdgeDocumentId = (string)forwardAdjList[0][KW_DOC_ID];
+            }
+            else
+            {
+                this.LatestOutEdgeDocumentId = null;
+            }
             this.AdjacencyList = new AdjacencyListField(
-                connection, vertexId, vertexLabel, forwardAdjList, false,
-                EdgeDocumentHelper.IsBuildingTheAdjacencyListLazily(this.VertexJObject, false, connection.UseReverseEdges));
+                connection, this.VertexId, this.VertexLabel, forwardAdjList, false,
+                EdgeDocumentHelper.IsBuildingTheAdjacencyListLazily(vertexObject, false, connection.UseReverseEdges));
+
 
             Debug.Assert(backwardAdjList != null);
+            if (EdgeDocumentHelper.IsSpilledVertex(vertexObject, true))
+            {
+                Debug.Assert(connection.UseReverseEdges);
+                Debug.Assert(backwardAdjList.Count == 1);
+                this.LatestInEdgeDocumentId = (string)backwardAdjList[0][KW_DOC_ID];
+            }
+            else
+            {
+                this.LatestInEdgeDocumentId = null;
+            }
             this.RevAdjacencyList = new AdjacencyListField(
-                connection, vertexId, vertexLabel, backwardAdjList, true,
-                EdgeDocumentHelper.IsBuildingTheAdjacencyListLazily(this.VertexJObject, true, connection.UseReverseEdges));
+                connection, this.VertexId, this.VertexLabel, backwardAdjList, true,
+                EdgeDocumentHelper.IsBuildingTheAdjacencyListLazily(vertexObject, true, connection.UseReverseEdges));
         }
 
 

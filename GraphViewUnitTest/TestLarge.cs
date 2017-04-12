@@ -23,7 +23,7 @@ namespace GraphViewUnitTest
 #endif
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static GraphViewConnection CreateConnection(string tips = null, int? edgeSpillThreshold = null)
+        private static GraphViewConnection CreateConnection(string tips = null, int? edgeSpillThreshold = 1)
         {
             StackFrame frame = new StackFrame(1);
             if (!string.IsNullOrEmpty(tips)) {
@@ -33,7 +33,7 @@ namespace GraphViewUnitTest
 
             GraphViewConnection connection = new GraphViewConnection(DOCDB_URL, DOCDB_AUTHKEY, DOCDB_DATABASE, collectionName);
             connection.EnsureDatabaseExist();
-            connection.ResetCollection(CollectionType.PARTITIONED, edgeSpillThreshold);
+            connection.ResetCollection(CollectionType.STANDARD, edgeSpillThreshold);
             return connection;
         }
 
@@ -251,7 +251,7 @@ namespace GraphViewUnitTest
 
             for (int i = 0; i < EDGE_COUNT; i++) {
                 if (i % 2 == 1) {
-                    graph.g().V().OutE().HasLabel($"E{i}").Property($"E{i} Property", null).Next();
+                    graph.g().V().OutE().HasLabel($"E{i}").Properties($"E{i} Property").Drop().Next();
                     graph.g().V().OutE().HasLabel($"E{i}").Property($"E{i} Another Property", "Dummy!").Next();
                 }
             }
@@ -273,7 +273,7 @@ namespace GraphViewUnitTest
 
             for (int i = 0; i < EDGE_COUNT; i++) {
                 if (i % 2 == 1) {
-                    graph.g().V().OutE().HasLabel($"E{i}{suffix}").Property($"E{i} Property", null).Next();
+                    graph.g().V().OutE().HasLabel($"E{i}{suffix}").Properties($"E{i} Property").Drop().Next();
                     graph.g().V().OutE().HasLabel($"E{i}{suffix}").Property($"E{i} Another Property", "Dummy!").Next();
                 }
             }
@@ -297,7 +297,7 @@ namespace GraphViewUnitTest
 
             // Drop all added properties
             for (int i = 0; i < EDGE_COUNT; i++) {
-                graph.g().V().OutE().HasLabel($"E{i}{suffix}").Property($"E{i} Property", null).Next();
+                graph.g().V().OutE().HasLabel($"E{i}{suffix}").Properties($"E{i} Property").Drop().Next();
             }
 
             // Add new property
@@ -327,7 +327,7 @@ namespace GraphViewUnitTest
             GraphViewConnection connection = CreateConnection($"Threshold={THRESHOLD},E={EDGE_COUNT}", THRESHOLD);
             GraphViewCommand graph = new GraphViewCommand(connection);
 
-            Console.WriteLine($"EdgeSpillThreashold: {connection.EdgeSpillThreshold}");
+            Console.WriteLine($"EdgeSpillThreshold: {connection.EdgeSpillThreshold}");
             graph.g().AddV("SourceV").Next();
             graph.g().AddV("SinkV").Next();
             for (int i = 0; i < EDGE_COUNT; i++) {
@@ -344,7 +344,7 @@ namespace GraphViewUnitTest
             string prefix = new string('_', 1024 * 600);
             GraphViewConnection connection = CreateConnection($"Threshold={THRESHOLD},E={EDGE_COUNT}", THRESHOLD);
             GraphViewCommand graph = new GraphViewCommand(connection);
-            Console.WriteLine($"EdgeSpillThreashold: {connection.EdgeSpillThreshold}");
+            Console.WriteLine($"EdgeSpillThreshold: {connection.EdgeSpillThreshold}");
 
             graph.g().AddV("SourceV").Next();
             graph.g().AddV("SinkV").Next();

@@ -39,6 +39,13 @@ namespace GraphView
             return etag;
         }
 
+        public bool TryRemoveEtag(string docId)
+        {
+            Debug.Assert(docId != null);
+
+            return this._currentEtags.Remove(docId);
+        }
+
         public void RemoveEtag(string docId)
         {
             Debug.Assert(docId != null);

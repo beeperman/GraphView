@@ -74,7 +74,7 @@ namespace GraphView
         /// <summary>
         /// Spill if how many edges are in a edge-document?
         /// </summary>
-        public int EdgeSpillThreshold { get; private set; } = 0;
+        public int EdgeSpillThreshold { get; private set; }
 
         internal VertexObjectCache VertexCache { get; }
         internal Bulk Bulk { get; }
@@ -142,7 +142,6 @@ namespace GraphView
                                                   this.DocDBPrimaryKey,
                                                   connectionPolicy);
             this.DocDBClient.OpenAsync().Wait();
-
 
             //
             // Check whether it is a partition collection (if exists)
@@ -301,7 +300,7 @@ namespace GraphView
             //
             StoredProcedure storedProcedure = new StoredProcedure() {
                 Id = "BulkOperation",
-                Body = File.ReadAllText("GraphViewExecutionRuntime\\Bulking\\BulkOperation.js", Encoding.UTF8)
+                Body = GraphView.Properties.Resources.BulkOperation,
             };
             this.DocDBClient.CreateStoredProcedureAsync(
                 this._docDBCollectionUri,
@@ -328,7 +327,7 @@ namespace GraphView
             this.DocDBClient.CreateDocumentCollectionAsync(
                 this._docDBDatabaseUri,
                 collection,
-                new RequestOptions {OfferType = "S3"}
+                new RequestOptions {OfferThroughput = 10000}
             ).Wait();
         }
 
@@ -502,12 +501,15 @@ namespace GraphView
             }
         }
 
-        internal string ExecuteSProcBulkOperation(params dynamic[] parameters)
+        internal string ExecuteBulkOperation(params dynamic[] parameters)
         {
             string responseBody = this.DocDBClient.ExecuteStoredProcedureAsync<string>(
                 UriFactory.CreateStoredProcedureUri(this.DocDBDatabaseId, this.DocDBCollectionId, "BulkOperation"),
                 parameters
                 ).Result.Response;
+            if (string.IsNullOrEmpty(responseBody)) {
+                throw new Exception("BUG: BulkOperation succeeds but response is null or empty!");
+            }
             return responseBody;
         }
 

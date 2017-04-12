@@ -114,6 +114,7 @@
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\ProjectTest.cs" />
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\PropertiesTest.cs" />
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\SelectTest.cs" />
+    <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\SumTest.cs" />
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\UnfoldTest.cs" />
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\FlatMapTest.cs" />
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\FoldTest.cs" />
@@ -124,6 +125,7 @@
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\OrTest.cs" />
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\StoreTest.cs" />
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\TreeTest.cs" />
+    <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\ValueMapTest.cs" />
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\VertexTest.cs" />
     <Compile Include="IOTQueryTest.cs" />
     <Compile Include="IoTUnitTest.cs" />

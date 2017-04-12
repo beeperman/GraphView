@@ -109,6 +109,7 @@
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\MaxTest.cs" />
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\MeanTest.cs" />
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\MinTest.cs" />
+    <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\OrderTest.cs" />
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\PathTest.cs" />
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\ProjectTest.cs" />
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\PropertiesTest.cs" />

@@ -2922,6 +2922,22 @@ namespace GraphView
         }
     }
 
+    partial class WCountLocalTableReference
+    {
+        private const int InputObjectParameterIndex = 0;
+
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        {
+            WColumnReferenceExpression inputObjectParameter = this.Parameters[InputObjectParameterIndex] as WColumnReferenceExpression;
+            Debug.Assert(inputObjectParameter != null, "inputObjectParameter != null");
+            int inputObjectIndex = context.LocateColumnReference(inputObjectParameter);
+
+            CountLocalOperator countLocalOp = new CountLocalOperator(context.CurrentExecutionOperator, inputObjectIndex);
+            context.AddField(this.Alias.Value, GremlinKeyword.TableDefaultColumnName, ColumnGraphType.Value);
+            return countLocalOp;
+        }
+    }
+
     partial class WRangeTableReference
     {
         internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)

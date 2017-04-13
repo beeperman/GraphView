@@ -64,6 +64,12 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests
             }
         }
 
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <remarks>
+        /// Add id of properties in ToGraphSon format
+        /// </remarks>
         [TestMethod]
         public void DropMultiPropertiesAndMetaPropertiesTest()
         {
@@ -146,8 +152,8 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests
                 CheckUnOrderedResults(
                     new []
                     {
-                        JObject.Parse(@"{""value"": ""marko4"",""label"": ""name"",""properties"": {""meta1"": ""metaStr1""}}").ToString(),
-                        JObject.Parse(@"{""value"": ""marko2"",""label"": ""name"",""properties"": {""meta1"": 1,""meta3"": ""metaStr3""}}").ToString(), 
+                        JObject.Parse(@"{""id"": """ + ConvertToPropertyId(command, "marko4", "name", "marko4") + @""", ""value"": ""marko4"",""label"": ""name"",""properties"": {""meta1"": ""metaStr1""}}").ToString(),
+                        JObject.Parse(@"{""id"": """ + ConvertToPropertyId(command, "marko2", "name", "marko2") + @""", ""value"": ""marko2"",""label"": ""name"",""properties"": {""meta1"": 1,""meta3"": ""metaStr3""}}").ToString(), 
                     },
                     new []
                     {

@@ -36,11 +36,14 @@ namespace GraphView
 
         public const string KW_DOC_ID = "id";
         public const string KW_DOC_PARTITION = "_partition";
+        public const string KW_DOC_ETAG = "_etag";
 
         public const string KW_VERTEX_LABEL = "label";
         public const string KW_VERTEX_EDGE = GremlinKeyword.EdgeAdj;
         public const string KW_VERTEX_REV_EDGE = GremlinKeyword.ReverseEdgeAdj;
-        public const string KW_VERTEX_NEXTOFFSET = "_nextEdgeOffset";
+        //public const string KW_VERTEX_NEXTOFFSET = "_nextEdgeOffset";
+        public const string KW_VERTEX_EDGE_SPILLED = "_edgeSpilled";
+        public const string KW_VERTEX_REVEDGE_SPILLED = "_revEdgeSpilled";
 
         public const string KW_PROPERTY_ID = "id";
         public const string KW_PROPERTY_VALUE = "_value";
@@ -48,7 +51,7 @@ namespace GraphView
 
         public const string KW_EDGE_LABEL = "label";
         public const string KW_EDGE_ID = "id";
-        public const string KW_EDGE_OFFSET = "_offset";
+        //public const string KW_EDGE_OFFSET = "_offset";
         public const string KW_EDGE_SRCV = "_srcV";
         public const string KW_EDGE_SRCV_LABEL = "_srcVLabel";
         public const string KW_EDGE_SINKV = "_sinkV";
@@ -56,6 +59,9 @@ namespace GraphView
 
         public const string KW_EDGEDOC_VERTEXID = "_vertex_id";
         public const string KW_EDGEDOC_ISREVERSE = "_is_reverse";
+        public const string KW_EDGEDOC_EDGE = KW_VERTEX_EDGE;
+
+        public static string KW_TABLE_DEFAULT_COLUMN_NAME = GremlinKeyword.TableDefaultColumnName;
 
         internal enum Pop
         {

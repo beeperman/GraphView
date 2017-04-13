@@ -80,7 +80,7 @@ namespace GraphView
 
             ConstructTraversalChain2(graphPattern);
 
-            ConstructJsonQueries(graphPattern);
+            ConstructJsonQueries(dbConnection, graphPattern);
 
             return ConstructOperator2(dbConnection, graphPattern, context, nonVertexTableReferences,
                 predicatesAccessedTableReferences);
@@ -157,38 +157,59 @@ namespace GraphView
                 else if (graphPattern.TryGetNode(tableName, out node))
                 {
                     if (node.Properties == null)
-                        node.Properties = new List<string>();
-                    foreach (var property in properties)
-                    {
-                        if (!node.Properties.Contains(property))
-                            node.Properties.Add(property);
+                        node.Properties = new HashSet<string>();
+                    foreach (var property in properties) {
+                        node.Properties.Add(property);
                     }
                 }
             }
         }
 
-        internal static void ConstructJsonQueries(MatchGraph graphPattern)
+        internal static bool CanBePushedToServer(bool useReverseEdges, MatchEdge matchEdge)
         {
-            foreach (var subGraph in graphPattern.ConnectedSubGraphs)
+            if (IsTraversalThroughPhysicalReverseEdge(matchEdge) && !useReverseEdges) {
+                return false;
+            }
+
+            return matchEdge != null && matchEdge.EdgeType != WEdgeType.BothEdge;
+        }
+
+        internal static void ConstructJsonQueries(GraphViewConnection connection, MatchGraph graphPattern)
+        {
+            foreach (ConnectedComponent subGraph in graphPattern.ConnectedSubGraphs)
             {
-                var processedNodes = new HashSet<MatchNode>();
+                HashSet<MatchNode> processedNodes = new HashSet<MatchNode>();
                 var traversalChain =
                     new Stack<Tuple<MatchNode, MatchEdge, MatchNode, List<MatchEdge>, List<MatchEdge>>>(
                         subGraph.TraversalChain2);
                 while (traversalChain.Count != 0)
                 {
                     var currentChain = traversalChain.Pop();
-                    var sourceNode = currentChain.Item1;
-                    var traversalEdge = currentChain.Item2;
+                    MatchNode sourceNode = currentChain.Item1;
+                    MatchEdge traversalEdge = currentChain.Item2;
+
                     if (!processedNodes.Contains(sourceNode))
                     {
-                        ConstructJsonQueryOnNode(sourceNode);
+                        MatchEdge pushedToServerEdge = null;
+                        if (traversalEdge != null) {
+                            pushedToServerEdge = CanBePushedToServer(connection.UseReverseEdges, traversalEdge) ? traversalEdge : null;
+                        }
+                        //
+                        // TODO: Refactor
+                        //
+                        else if (sourceNode.DanglingEdges.Count == 1)
+                        {
+                            pushedToServerEdge = CanBePushedToServer(connection.UseReverseEdges, sourceNode.DanglingEdges[0])
+                                ? sourceNode.DanglingEdges[0]
+                                : null;
+                        }
+                        ConstructJsonQueryOnNode(sourceNode, pushedToServerEdge);
                         processedNodes.Add(sourceNode);
                     }
                     if (traversalEdge != null)
                     {
-                        var sinkNode = traversalEdge.SinkNode;
-                        ConstructJsonQueryOnNode(sinkNode, currentChain.Item4);
+                        MatchNode sinkNode = currentChain.Item3;
+                        ConstructJsonQueryOnNode(sinkNode);
                         processedNodes.Add(sinkNode);
                     }
                 }
@@ -196,65 +217,56 @@ namespace GraphView
         }
         
 
-        internal static void ConstructJsonQueryOnNode(MatchNode node, List<MatchEdge> backwardMatchingEdges = null)
+        internal static void ConstructJsonQueryOnNode(MatchNode node, MatchEdge edge = null)
         {
             string nodeAlias = node.NodeAlias;
+            string edgeAlias = null;
             StringBuilder selectStrBuilder = new StringBuilder();
             StringBuilder joinStrBuilder = new StringBuilder();
-            List<string> properties = new List<string> { nodeAlias };
-            List<ColumnGraphType> projectedColumnsType = new List<ColumnGraphType>();
+            List<string> nodeProperties = new List<string> { nodeAlias };
+            List<string> edgeProperties = new List<string>();
+            bool isReverseAdj = edge != null ? IsTraversalThroughPhysicalReverseEdge(edge) : false;
+            bool isStartVertexTheOriginVertex = edge != null ? !edge.IsReversed : false;
 
-            WBooleanExpression searchCondition = null;
-            
+
+            foreach (string propertyName in node.Properties) {
+                nodeProperties.Add(propertyName);
+            }
+
             //
             // SELECT N_0 FROM Node N_0
             //
             selectStrBuilder.Append(nodeAlias);
 
-            properties.Add(GremlinKeyword.NodeID);
-            projectedColumnsType.Add(ColumnGraphType.VertexId);
-
-            properties.Add(GremlinKeyword.Label);
-            projectedColumnsType.Add(ColumnGraphType.Value);
-
-            properties.Add(GremlinKeyword.EdgeAdj);
-            projectedColumnsType.Add(ColumnGraphType.OutAdjacencyList);
-
-            properties.Add(GremlinKeyword.ReverseEdgeAdj);
-            projectedColumnsType.Add(ColumnGraphType.InAdjacencyList);
-
-            properties.Add(GremlinKeyword.Star);
-            projectedColumnsType.Add(ColumnGraphType.VertexObject);
-
-            for (int propertyIndex = GraphViewReservedProperties.ReservedNodeProperties.Count; 
-                propertyIndex < node.Properties.Count;
-                propertyIndex++)
+            if (edge != null)
             {
-                properties.Add(node.Properties[propertyIndex]);
-                projectedColumnsType.Add(ColumnGraphType.Value);
+                edgeAlias = edge.EdgeAlias;
+                edgeProperties.Add(edge.EdgeAlias);
+                edgeProperties.Add(isReverseAdj.ToString());
+                edgeProperties.Add(isStartVertexTheOriginVertex.ToString());
+
+                //
+                // SELECT N_0, {"id": E_0.id} as E_0 FROM Node N_0 ...
+                //
+                selectStrBuilder.AppendFormat(", {{\"{0}\": {1}.{0}}} AS {1} ", GraphViewKeywords.KW_EDGE_ID, edgeAlias);
+
+                foreach (string propertyName in edge.Properties) {
+                    edgeProperties.Add(propertyName);
+                }
             }
 
-            foreach (WBooleanExpression predicate in node.Predicates)
-                searchCondition = WBooleanBinaryExpression.Conjunction(searchCondition, predicate);
-
-            //
-            // Currently, no backwardMatchingEdges will be produced
-            //
-            //if (backwardMatchingEdges == null)
-            //    backwardMatchingEdges = new List<MatchEdge>();
-
-            //foreach (MatchEdge edge in backwardMatchingEdges)
-            //{
-            //}
-
+            WBooleanExpression nodeCondition = null;
+            foreach (WBooleanExpression predicate in node.Predicates) {
+                nodeCondition = WBooleanBinaryExpression.Conjunction(nodeCondition, predicate);
+            }
 
             BooleanWValueExpressionVisitor booleanWValueExpressionVisitor = new BooleanWValueExpressionVisitor();
-            booleanWValueExpressionVisitor.Invoke(searchCondition);
+            booleanWValueExpressionVisitor.Invoke(nodeCondition);
 
-            NormalizeWColumnReferenceExpressionVisitor normalizeColumnReferenceExpressionVisitor =
-                new NormalizeWColumnReferenceExpressionVisitor();
+            NormalizeNodePredicatesWColumnReferenceExpressionVisitor normalizeNodePredicatesColumnReferenceExpressionVisitor =
+                new NormalizeNodePredicatesWColumnReferenceExpressionVisitor();
             Dictionary<string, string> referencedProperties =
-                normalizeColumnReferenceExpressionVisitor.Invoke(searchCondition);
+                normalizeNodePredicatesColumnReferenceExpressionVisitor.Invoke(nodeCondition);
 
             foreach (KeyValuePair<string, string> referencedProperty in referencedProperties)
             {
@@ -262,14 +274,50 @@ namespace GraphView
                     nodeAlias, referencedProperty.Value);
             }
 
+            WBooleanExpression edgeCondition = null;
+            if (edge != null)
+            {
+                joinStrBuilder.AppendFormat(" JOIN {0} IN {1}.{2} ", edgeAlias, nodeAlias,
+                    isReverseAdj ? GraphViewKeywords.KW_VERTEX_REV_EDGE : GraphViewKeywords.KW_VERTEX_EDGE);
+
+                WBooleanExpression tempEdgeCondition = null;
+                foreach (WBooleanExpression predicate in edge.Predicates) {
+                    tempEdgeCondition = WBooleanBinaryExpression.Conjunction(tempEdgeCondition, predicate);
+                }
+
+                booleanWValueExpressionVisitor.Invoke(tempEdgeCondition);
+
+                edgeCondition = tempEdgeCondition.Copy();
+                DMultiPartIdentifierVisitor normalizeEdgePredicatesColumnReferenceExpressionVisitor = new DMultiPartIdentifierVisitor();
+                normalizeEdgePredicatesColumnReferenceExpressionVisitor.Invoke(edgeCondition);
+            }
+            string edgeConditionString = edgeCondition?.ToString();
+            if (!string.IsNullOrEmpty(edgeConditionString))
+            {
+                edgeConditionString = string.Format("({0}) OR {1}.{2} = true",
+                    edgeConditionString,
+                    nodeAlias,
+                    isReverseAdj
+                        ? GraphViewKeywords.KW_VERTEX_REVEDGE_SPILLED
+                        : GraphViewKeywords.KW_VERTEX_EDGE_SPILLED);
+            }
+
+            bool hasNodePredicates = nodeCondition != null;
+            bool hasEdgePredicates = edgeCondition != null;
+            bool hasBothNodePredicatesAndEdgePredicates = hasNodePredicates && hasEdgePredicates;
+            string searchConditionString = string.Format("{0}{1}{2}",
+                hasNodePredicates ? $"({nodeCondition.ToString()})" : "",
+                hasBothNodePredicatesAndEdgePredicates ? " AND " : "",
+                hasEdgePredicates ? $"({edgeConditionString})" : "");
+
             JsonQuery jsonQuery = new JsonQuery
             {
                 Alias = nodeAlias,
                 JoinClause = joinStrBuilder.ToString(),
                 SelectClause = selectStrBuilder.ToString(),
-                WhereSearchCondition = searchCondition != null ? searchCondition.ToString() : null,
-                Properties = properties,
-                ProjectedColumnsType = projectedColumnsType,
+                WhereSearchCondition = searchConditionString,
+                NodeProperties = nodeProperties,
+                EdgeProperties = edgeProperties,
             };
             node.AttachedJsonQuery = jsonQuery;
         }
@@ -346,9 +394,7 @@ namespace GraphView
                                 SrcNode.DanglingEdges = new List<MatchEdge>();
                                 SrcNode.External = false;
                                 SrcNode.Predicates = new List<WBooleanExpression>();
-                                SrcNode.ReverseCheckList = new Dictionary<int, int>();
-                                SrcNode.HeaderLength = 0;
-                                SrcNode.Properties = new List<string>(GraphViewReservedProperties.ReservedNodeProperties);
+                                SrcNode.Properties = new HashSet<string>(GraphViewReservedProperties.InitialPopulateNodeProperties);
                             }
 
                             // Consturct the edge of a path in MatchClause.Paths
@@ -451,6 +497,17 @@ namespace GraphView
                             else
                             {
                                 SrcNode.DanglingEdges.Add(EdgeFromSrcNode);
+                                if (EdgeFromSrcNode.EdgeType == WEdgeType.BothEdge)
+                                {
+                                    SrcNode.Properties.Add(GremlinKeyword.EdgeAdj);
+                                    SrcNode.Properties.Add(GremlinKeyword.ReverseEdgeAdj);
+                                }
+                                else if (EdgeFromSrcNode.EdgeType == WEdgeType.OutEdge) {
+                                    SrcNode.Properties.Add(GremlinKeyword.EdgeAdj);
+                                }
+                                else {
+                                    SrcNode.Properties.Add(GremlinKeyword.ReverseEdgeAdj);
+                                }
                             }
                         }
                         if (path.Tail == null) continue;
@@ -474,9 +531,7 @@ namespace GraphView
                             DestNode.ReverseNeighbors = new List<MatchEdge>();
                             DestNode.DanglingEdges = new List<MatchEdge>();
                             DestNode.Predicates = new List<WBooleanExpression>();
-                            DestNode.ReverseCheckList = new Dictionary<int, int>();
-                            DestNode.HeaderLength = 0;
-                            DestNode.Properties = new List<string>(GraphViewReservedProperties.ReservedNodeProperties);
+                            DestNode.Properties = new HashSet<string>(GraphViewReservedProperties.InitialPopulateNodeProperties);
                         }
                         if (EdgeToSrcNode != null)
                         {
@@ -497,7 +552,7 @@ namespace GraphView
                                     IsReversed = true,
                                     EdgeType = EdgeToSrcNode.EdgeType,
                                     Properties = new List<string>(GraphViewReservedProperties.ReservedEdgeProperties),
-                            };
+                                };
                                 DestNode.ReverseNeighbors.Add(reverseEdge);
                                 reversedEdgeDict[EdgeToSrcNode.EdgeAlias] = reverseEdge;
                             }
@@ -526,7 +581,7 @@ namespace GraphView
                     patternNode.DanglingEdges = new List<MatchEdge>();
                     patternNode.External = false;
                     patternNode.Predicates = new List<WBooleanExpression>();
-                    patternNode.Properties = new List<string>(GraphViewReservedProperties.ReservedNodeProperties);
+                    patternNode.Properties = new HashSet<string>(GraphViewReservedProperties.InitialPopulateNodeProperties);
                 }
 
                 if (!subGraphMap.ContainsKey(root))
@@ -606,17 +661,20 @@ namespace GraphView
         /// <returns></returns>
         private Tuple<int, int> LocateAdjacencyListIndexes(QueryCompilationContext context, MatchEdge edge)
         {
-            var edgeIndex =
-                context.LocateColumnReference(new WColumnReferenceExpression(edge.SourceNode.NodeAlias, GremlinKeyword.EdgeAdj));
-            var reverseEdgeIndex =
-                context.LocateColumnReference(new WColumnReferenceExpression(edge.SourceNode.NodeAlias, GremlinKeyword.ReverseEdgeAdj));
+            WColumnReferenceExpression adjListColumn = new WColumnReferenceExpression(edge.SourceNode.NodeAlias,
+                GremlinKeyword.EdgeAdj);
+            WColumnReferenceExpression revAdjListColumn = new WColumnReferenceExpression(edge.SourceNode.NodeAlias,
+                GremlinKeyword.ReverseEdgeAdj);
+
             if (edge.EdgeType == WEdgeType.BothEdge)
-                return new Tuple<int, int>(edgeIndex, reverseEdgeIndex);
+                return new Tuple<int, int>(
+                    context.LocateColumnReference(adjListColumn), 
+                    context.LocateColumnReference(revAdjListColumn));
 
             if (IsTraversalThroughPhysicalReverseEdge(edge))
-                return new Tuple<int, int>(-1, reverseEdgeIndex);
+                return new Tuple<int, int>(-1, context.LocateColumnReference(revAdjListColumn));
             else
-                return new Tuple<int, int>(edgeIndex, -1);
+                return new Tuple<int, int>(context.LocateColumnReference(adjListColumn), -1);
         }
 
         /// <summary>
@@ -728,13 +786,12 @@ namespace GraphView
                 var edgeIndexTuple = LocateAdjacencyListIndexes(context, edge);
                 var localEdgeContext = GenerateLocalContextForAdjacentListDecoder(edge.EdgeAlias, edge.Properties);
                 var edgePredicates = edge.RetrievePredicatesExpression();
-                operatorChain.Add(new AdjacencyListDecoder2(
+                operatorChain.Add(new AdjacencyListDecoder(
                     operatorChain.Last(),
                     context.LocateColumnReference(edge.SourceNode.NodeAlias, GremlinKeyword.NodeID),
-                    context.LocateColumnReference(edge.SourceNode.NodeAlias, GremlinKeyword.Label),
                     edgeIndexTuple.Item1, edgeIndexTuple.Item2, !edge.IsReversed,
                     edgePredicates != null ? edgePredicates.CompileToFunction(localEdgeContext, connection) : null,
-                    edge.Properties, connection));
+                    edge.Properties, connection, context.RawRecordLayout.Count + edge.Properties.Count));
                 context.CurrentExecutionOperator = operatorChain.Last();
 
                 // Update edge's context info
@@ -812,15 +869,15 @@ namespace GraphView
             }
         }
 
-        private void UpdateNodeLayout(string nodeAlias, List<string> properties, QueryCompilationContext context)
+        private void UpdateNodeLayout(string nodeAlias, HashSet<string> properties, QueryCompilationContext context)
         {
-            context.AddField(nodeAlias, GremlinKeyword.NodeID, ColumnGraphType.VertexId);
-            context.AddField(nodeAlias, GremlinKeyword.Label, ColumnGraphType.Value);
-            context.AddField(nodeAlias, GremlinKeyword.EdgeAdj, ColumnGraphType.OutAdjacencyList);
-            context.AddField(nodeAlias, GremlinKeyword.ReverseEdgeAdj, ColumnGraphType.InAdjacencyList);
-            context.AddField(nodeAlias, GremlinKeyword.Star, ColumnGraphType.VertexObject);
-            for (var i = GraphViewReservedProperties.ReservedNodeProperties.Count; i < properties.Count; i++)
-                context.AddField(nodeAlias, properties[i], ColumnGraphType.Value);
+            foreach (string propertyName in properties)
+            {
+                ColumnGraphType columnGraphType = GraphViewReservedProperties.IsNodeReservedProperty(propertyName)
+                    ? GraphViewReservedProperties.ReservedNodePropertiesColumnGraphTypes[propertyName]
+                    : ColumnGraphType.Value;
+                context.AddField(nodeAlias, propertyName, columnGraphType);
+            }
         }
 
         private void UpdateEdgeLayout(string edgeAlias, List<string> properties, QueryCompilationContext context)
@@ -829,7 +886,7 @@ namespace GraphView
             context.AddField(edgeAlias, GremlinKeyword.EdgeSourceV, ColumnGraphType.EdgeSource);
             context.AddField(edgeAlias, GremlinKeyword.EdgeSinkV, ColumnGraphType.EdgeSink);
             context.AddField(edgeAlias, GremlinKeyword.EdgeOtherV, ColumnGraphType.Value);
-            context.AddField(edgeAlias, GremlinKeyword.EdgeOffset, ColumnGraphType.EdgeOffset);
+            context.AddField(edgeAlias, GremlinKeyword.EdgeID, ColumnGraphType.EdgeId);
             context.AddField(edgeAlias, GremlinKeyword.Star, ColumnGraphType.EdgeObject);
             for (var i = GraphViewReservedProperties.ReservedEdgeProperties.Count; i < properties.Count; i++)
             {
@@ -923,6 +980,13 @@ namespace GraphView
                             UpdateNodeLayout(sinkNode.NodeAlias, sinkNode.Properties, context);
                             tableReferences.Add(sinkNode.NodeAlias, TableGraphType.Vertex);
 
+                            // Cross apply dangling edges
+                            CrossApplyEdges(connection, context, operatorChain, sinkNode.DanglingEdges,
+                                predicatesAccessedTableReferences);
+
+                            //
+                            // TODO: Cross apply backward Edges here
+                            //
                             // Update backwardEdges' context info
                             foreach (var backwardMatchingEdge in backwardMatchingEdges)
                             {
@@ -938,10 +1002,6 @@ namespace GraphView
                             CrossApplyEdges(connection, context, operatorChain, forwardMatchingEdges,
                                 predicatesAccessedTableReferences, true);
 
-                            // Cross apply dangling edges
-                            CrossApplyEdges(connection, context, operatorChain, sinkNode.DanglingEdges,
-                                predicatesAccessedTableReferences);
-                            
                             CheckRemainingPredicatesAndAppendFilterOp(context, connection,
                                 new HashSet<string>(tableReferences.Keys), predicatesAccessedTableReferences,
                                 operatorChain);
@@ -1518,7 +1578,7 @@ namespace GraphView
             QueryCompilationContext subcontext = new QueryCompilationContext(context);
             ContainerOperator containerOp = null;
             bool isCarryOnMode = false;
-            if (HasAggregateFunctionInTheOptionalSelectQuery(optionalSelect))
+            if (this.HasAggregateFunctionAsChildren)
             {
                 isCarryOnMode = true;
                 containerOp = new ContainerOperator(context.CurrentExecutionOperator);
@@ -1633,54 +1693,93 @@ namespace GraphView
         }
     }
 
-    partial class WBoundOutNodeTableReference
+    partial class WBoundNodeTableReference
     {
         internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
         {
-            var sinkParameter = Parameters[0] as WColumnReferenceExpression;
-            var sinkIndex = context.LocateColumnReference(sinkParameter);
-            var nodeAlias = Alias.Value;
-            //var isSendQueryRequired = !(Parameters.Count == 2 && (Parameters[1] as WValueExpression).Value.Equals("id"));
-            var isSendQueryRequired = true;
+            Debug.Assert(context.CurrentExecutionOperator != null, "context.CurrentExecutionOperator != null");
 
-            var matchNode = new MatchNode
+            string nodeAlias = Alias.Value;
+            MatchNode matchNode = new MatchNode
             {
                 AttachedJsonQuery = null,
                 NodeAlias = nodeAlias,
                 Predicates = new List<WBooleanExpression>(),
-                Properties = new List<string>(GraphViewReservedProperties.ReservedNodeProperties),
+                Properties = new HashSet<string>(GraphViewReservedProperties.InitialPopulateNodeProperties),
             };
 
-            // Construct JSON query
-            if (isSendQueryRequired)
+            foreach (WScalarExpression expression in this.Parameters)
             {
-                for (int i = 1; i < Parameters.Count; i++)
-                {
-                    var property = (Parameters[i] as WValueExpression).Value;
-                    if (!matchNode.Properties.Contains(property))
-                        matchNode.Properties.Add(property);
-                }
+                WValueExpression populateProperty = expression as WValueExpression;
+                Debug.Assert(populateProperty != null, "populateProperty != null");
+
+                matchNode.Properties.Add(populateProperty.Value);
+            }
+
+            WSelectQueryBlock.ConstructJsonQueryOnNode(matchNode);
+
+            FetchNodeOperator2 fetchNodeOp = new FetchNodeOperator2(dbConnection, matchNode.AttachedJsonQuery);
+
+            foreach (string propertyName in matchNode.Properties) {
+                ColumnGraphType columnGraphType = GraphViewReservedProperties.IsNodeReservedProperty(propertyName)
+                    ? GraphViewReservedProperties.ReservedNodePropertiesColumnGraphTypes[propertyName]
+                    : ColumnGraphType.Value;
+                context.AddField(nodeAlias, propertyName, columnGraphType);
+            }
+
+            return new CartesianProductOperator2(context.CurrentExecutionOperator, fetchNodeOp);
+        }
+    }
+
+    partial class WBoundOutNodeTableReference
+    {
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        {
+            WColumnReferenceExpression sinkParameter = Parameters[0] as WColumnReferenceExpression;
+            int sinkIndex = context.LocateColumnReference(sinkParameter);
+            string nodeAlias = Alias.Value;
+
+            MatchNode matchNode = new MatchNode
+            {
+                AttachedJsonQuery = null,
+                NodeAlias = nodeAlias,
+                Predicates = new List<WBooleanExpression>(),
+                Properties = new HashSet<string>(GraphViewReservedProperties.InitialPopulateNodeProperties),
+            };
+
+            for (int i = 1; i < this.Parameters.Count; i++)
+            {
+                WValueExpression populateProperty = this.Parameters[i] as WValueExpression;
+                Debug.Assert(populateProperty != null, "populateProperty != null");
+
+                matchNode.Properties.Add(populateProperty.Value);
+            }
+
+            bool isSendQueryRequired = !(matchNode.Properties.Count == 1 &&
+                                         matchNode.Properties.First().Equals(GraphViewKeywords.KW_DOC_ID));
+
+            //
+            // Construct JSON query
+            //
+            if (isSendQueryRequired) {
                 WSelectQueryBlock.ConstructJsonQueryOnNode(matchNode);
             }
 
-            var traversalOp = new TraversalOperator2(context.CurrentExecutionOperator, dbConnection, sinkIndex,
+            TraversalOperator2 traversalOp = new TraversalOperator2(context.CurrentExecutionOperator, dbConnection, sinkIndex,
                 matchNode.AttachedJsonQuery, null);
             context.CurrentExecutionOperator = traversalOp;
 
             // Update context's record layout
-            if (isSendQueryRequired)
-            {
-                context.AddField(nodeAlias, GremlinKeyword.NodeID, ColumnGraphType.VertexId);
-                context.AddField(nodeAlias, GremlinKeyword.Label, ColumnGraphType.Value);
-                context.AddField(nodeAlias, GremlinKeyword.EdgeAdj, ColumnGraphType.OutAdjacencyList);
-                context.AddField(nodeAlias, GremlinKeyword.ReverseEdgeAdj, ColumnGraphType.InAdjacencyList);
-                context.AddField(nodeAlias, GremlinKeyword.Star, ColumnGraphType.VertexObject);
-                for (var i = GraphViewReservedProperties.ReservedNodeProperties.Count; i < matchNode.Properties.Count; i++)
-                    context.AddField(nodeAlias, matchNode.Properties[i], ColumnGraphType.Value);
+            if (isSendQueryRequired) {
+                foreach (string propertyName in matchNode.Properties) {
+                    ColumnGraphType columnGraphType = GraphViewReservedProperties.IsNodeReservedProperty(propertyName)
+                        ? GraphViewReservedProperties.ReservedNodePropertiesColumnGraphTypes[propertyName]
+                        : ColumnGraphType.Value;
+                    context.AddField(nodeAlias, propertyName, columnGraphType);
+                }
             }
-            else
-            {
-                context.AddField(nodeAlias, "id", ColumnGraphType.VertexId);
+            else {
+                context.AddField(nodeAlias, GremlinKeyword.NodeID, ColumnGraphType.VertexId);
             }
 
             return traversalOp;
@@ -1691,55 +1790,59 @@ namespace GraphView
     {
         internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
         {
-            var firstSinkParameter = Parameters[0] as WColumnReferenceExpression;
-            var secondSinkParameter = Parameters[1] as WColumnReferenceExpression;
-            var sinkIndexes = new List<int>
+            WColumnReferenceExpression firstSinkParameter = Parameters[0] as WColumnReferenceExpression;
+            WColumnReferenceExpression secondSinkParameter = Parameters[1] as WColumnReferenceExpression;
+            List<int> sinkIndexes = new List<int>
             {
                 context.LocateColumnReference(firstSinkParameter),
                 context.LocateColumnReference(secondSinkParameter)
             };
-            var nodeAlias = Alias.Value;
-            //var isSendQueryRequired = !(Parameters.Count == 3 && (Parameters[2] as WValueExpression).Value.Equals("id"));
-            var isSendQueryRequired = true;
 
-            var matchNode = new MatchNode
+            string nodeAlias = Alias.Value;
+
+            MatchNode matchNode = new MatchNode
             {
                 AttachedJsonQuery = null,
                 NodeAlias = nodeAlias,
                 Predicates = new List<WBooleanExpression>(),
-                Properties = new List<string>(GraphViewReservedProperties.ReservedNodeProperties),
+                Properties = new HashSet<string>(GraphViewReservedProperties.InitialPopulateNodeProperties),
             };
 
-            // Construct JSON query
-            if (isSendQueryRequired)
+            for (int i = 2; i < this.Parameters.Count; i++)
             {
-                for (int i = 2; i < Parameters.Count; i++)
-                {
-                    var property = (Parameters[i] as WValueExpression).Value;
-                    if (!matchNode.Properties.Contains(property))
-                        matchNode.Properties.Add(property);
-                }
+                WValueExpression populateProperty = this.Parameters[i] as WValueExpression;
+                Debug.Assert(populateProperty != null, "populateProperty != null");
+
+                matchNode.Properties.Add(populateProperty.Value);
+            }
+
+            bool isSendQueryRequired = !(matchNode.Properties.Count == 1 &&
+                                         matchNode.Properties.First().Equals(GraphViewKeywords.KW_DOC_ID));
+
+            //
+            // Construct JSON query
+            //
+            if (isSendQueryRequired) {
                 WSelectQueryBlock.ConstructJsonQueryOnNode(matchNode);
             }
 
-            var bothVOp = new BothVOperator(context.CurrentExecutionOperator, dbConnection, sinkIndexes,
+            BothVOperator bothVOp = new BothVOperator(context.CurrentExecutionOperator, dbConnection, sinkIndexes,
                 matchNode.AttachedJsonQuery);
             context.CurrentExecutionOperator = bothVOp;
 
+            //
             // Update context's record layout
-            if (isSendQueryRequired)
-            {
-                context.AddField(nodeAlias, GremlinKeyword.NodeID, ColumnGraphType.VertexId);
-                context.AddField(nodeAlias, GremlinKeyword.Label, ColumnGraphType.Value);
-                context.AddField(nodeAlias, GremlinKeyword.EdgeAdj, ColumnGraphType.OutAdjacencyList);
-                context.AddField(nodeAlias, GremlinKeyword.ReverseEdgeAdj, ColumnGraphType.InAdjacencyList);
-                context.AddField(nodeAlias, GremlinKeyword.Star, ColumnGraphType.VertexObject);
-                for (var i = GraphViewReservedProperties.ReservedNodeProperties.Count; i < matchNode.Properties.Count; i++)
-                    context.AddField(nodeAlias, matchNode.Properties[i], ColumnGraphType.Value);
+            //
+            if (isSendQueryRequired) {
+                foreach (string propertyName in matchNode.Properties) {
+                    ColumnGraphType columnGraphType = GraphViewReservedProperties.IsNodeReservedProperty(propertyName)
+                        ? GraphViewReservedProperties.ReservedNodePropertiesColumnGraphTypes[propertyName]
+                        : ColumnGraphType.Value;
+                    context.AddField(nodeAlias, propertyName, columnGraphType);
+                }
             }
-            else
-            {
-                context.AddField(nodeAlias, "id", ColumnGraphType.VertexId);
+            else {
+                context.AddField(nodeAlias, GremlinKeyword.NodeID, ColumnGraphType.VertexId);
             }
 
             return bothVOp;
@@ -1753,31 +1856,29 @@ namespace GraphView
         {
             var startVertexIdParameter = Parameters[0] as WColumnReferenceExpression;
             var adjListParameter = Parameters[1] as WColumnReferenceExpression;
-            var startVertexLabelParameter = Parameters[2] as WColumnReferenceExpression;
             
             var startVertexIndex = context.LocateColumnReference(startVertexIdParameter);
-            var startVertexLabelIndex = context.LocateColumnReference(startVertexLabelParameter);
             var adjListIndex = context.LocateColumnReference(adjListParameter);
 
             var edgeAlias = Alias.Value;
             var projectFields = new List<string>(GraphViewReservedProperties.ReservedEdgeProperties);
 
-            for (int i = 3; i < Parameters.Count; i++)
+            for (int i = 2; i < Parameters.Count; i++)
             {
                 var field = (Parameters[i] as WValueExpression).Value;
                 if (!projectFields.Contains(field))
                     projectFields.Add(field);
             }
 
-            var adjListDecoder = new AdjacencyListDecoder2(context.CurrentExecutionOperator, startVertexIndex, startVertexLabelIndex,
-                adjListIndex, -1, true, null, projectFields, dbConnection);
+            var adjListDecoder = new AdjacencyListDecoder(context.CurrentExecutionOperator, startVertexIndex,
+                adjListIndex, -1, true, null, projectFields, dbConnection, context.RawRecordLayout.Count + projectFields.Count);
             context.CurrentExecutionOperator = adjListDecoder;
 
             // Update context's record layout
             context.AddField(edgeAlias, GremlinKeyword.EdgeSourceV, ColumnGraphType.EdgeSource);
             context.AddField(edgeAlias, GremlinKeyword.EdgeSinkV, ColumnGraphType.EdgeSink);
             context.AddField(edgeAlias, GremlinKeyword.EdgeOtherV, ColumnGraphType.Value);
-            context.AddField(edgeAlias, GremlinKeyword.EdgeOffset, ColumnGraphType.EdgeOffset);
+            context.AddField(edgeAlias, GremlinKeyword.EdgeID, ColumnGraphType.EdgeId);
             context.AddField(edgeAlias, GremlinKeyword.Star, ColumnGraphType.EdgeObject);
 
             for (var i = GraphViewReservedProperties.ReservedEdgeProperties.Count; i < projectFields.Count; i++)
@@ -1795,31 +1896,29 @@ namespace GraphView
         {
             var startVertexIdParameter = Parameters[0] as WColumnReferenceExpression;
             var revAdjListParameter = Parameters[1] as WColumnReferenceExpression;
-            var startVertexLabelParameter = Parameters[2] as WColumnReferenceExpression;
 
             var startVertexIndex = context.LocateColumnReference(startVertexIdParameter);
-            var startVertexLabelIndex = context.LocateColumnReference(startVertexLabelParameter);
             var revAdjListIndex = context.LocateColumnReference(revAdjListParameter);
 
             var edgeAlias = Alias.Value;
             var projectFields = new List<string>(GraphViewReservedProperties.ReservedEdgeProperties);
 
-            for (int i = 3; i < Parameters.Count; i++)
+            for (int i = 2; i < Parameters.Count; i++)
             {
                 var field = (Parameters[i] as WValueExpression).Value;
                 if (!projectFields.Contains(field))
                     projectFields.Add(field);
             }
 
-            var adjListDecoder = new AdjacencyListDecoder2(context.CurrentExecutionOperator, startVertexIndex, startVertexLabelIndex,
-               - 1, revAdjListIndex, true, null, projectFields, dbConnection);
+            var adjListDecoder = new AdjacencyListDecoder(context.CurrentExecutionOperator, startVertexIndex,
+               - 1, revAdjListIndex, true, null, projectFields, dbConnection, context.RawRecordLayout.Count + projectFields.Count);
             context.CurrentExecutionOperator = adjListDecoder;
 
             // Update context's record layout
             context.AddField(edgeAlias, GremlinKeyword.EdgeSourceV, ColumnGraphType.EdgeSource);
             context.AddField(edgeAlias, GremlinKeyword.EdgeSinkV, ColumnGraphType.EdgeSink);
             context.AddField(edgeAlias, GremlinKeyword.EdgeOtherV, ColumnGraphType.Value);
-            context.AddField(edgeAlias, GremlinKeyword.EdgeOffset, ColumnGraphType.EdgeOffset);
+            context.AddField(edgeAlias, GremlinKeyword.EdgeID, ColumnGraphType.EdgeId);
             context.AddField(edgeAlias, GremlinKeyword.Star, ColumnGraphType.EdgeObject);
             for (var i = GraphViewReservedProperties.ReservedEdgeProperties.Count; i < projectFields.Count; i++)
             {
@@ -1837,32 +1936,30 @@ namespace GraphView
             var startVertexIdParameter = Parameters[0] as WColumnReferenceExpression;
             var adjListParameter = Parameters[1] as WColumnReferenceExpression;
             var revAdjListParameter = Parameters[2] as WColumnReferenceExpression;
-            var startVertexLabelParameter = Parameters[3] as WColumnReferenceExpression;
 
             var startVertexIndex = context.LocateColumnReference(startVertexIdParameter);
-            var startVertexLabelIndex = context.LocateColumnReference(startVertexLabelParameter);
             var adjListIndex = context.LocateColumnReference(adjListParameter);
             var revAdjListIndex = context.LocateColumnReference(revAdjListParameter);
 
             var edgeAlias = Alias.Value;
             var projectFields = new List<string>(GraphViewReservedProperties.ReservedEdgeProperties);
 
-            for (int i = 4; i < Parameters.Count; i++)
+            for (int i = 3; i < Parameters.Count; i++)
             {
                 var field = (Parameters[i] as WValueExpression).Value;
                 if (!projectFields.Contains(field))
                     projectFields.Add(field);
             }
 
-            var adjListDecoder = new AdjacencyListDecoder2(context.CurrentExecutionOperator, startVertexIndex, startVertexLabelIndex,
-                adjListIndex, revAdjListIndex, true, null, projectFields, dbConnection);
+            var adjListDecoder = new AdjacencyListDecoder(context.CurrentExecutionOperator, startVertexIndex,
+                adjListIndex, revAdjListIndex, true, null, projectFields, dbConnection, context.RawRecordLayout.Count + projectFields.Count);
             context.CurrentExecutionOperator = adjListDecoder;
 
             // Update context's record layout
             context.AddField(edgeAlias, GremlinKeyword.EdgeSourceV, ColumnGraphType.EdgeSource);
             context.AddField(edgeAlias, GremlinKeyword.EdgeSinkV, ColumnGraphType.EdgeSink);
             context.AddField(edgeAlias, GremlinKeyword.EdgeOtherV, ColumnGraphType.Value);
-            context.AddField(edgeAlias, GremlinKeyword.EdgeOffset, ColumnGraphType.EdgeOffset);
+            context.AddField(edgeAlias, GremlinKeyword.EdgeID, ColumnGraphType.EdgeId);
             context.AddField(edgeAlias, GremlinKeyword.Star, ColumnGraphType.EdgeObject);
             for (var i = GraphViewReservedProperties.ReservedEdgeProperties.Count; i < projectFields.Count; i++)
             {
@@ -1899,6 +1996,48 @@ namespace GraphView
             return valuesOp;
         }
     }
+
+
+    partial class WLabelTableReference
+    {
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        {
+            Debug.Assert(this.Parameters.Count == 1);
+
+            WColumnReferenceExpression targetVertexOrEdge = this.Parameters[0] as WColumnReferenceExpression;
+            Debug.Assert(targetVertexOrEdge != null);
+
+            int targetVertexOrEdgeIndex = context.LocateColumnReference(targetVertexOrEdge);
+
+            GraphViewExecutionOperator labelOp = new LabelOperator(context.CurrentExecutionOperator, targetVertexOrEdgeIndex);
+            context.CurrentExecutionOperator = labelOp;
+            context.AddField(Alias.Value, GremlinKeyword.TableDefaultColumnName, ColumnGraphType.Value);
+
+            return labelOp;
+        }
+    }
+
+
+    partial class WIdTableReference
+    {
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        {
+            Debug.Assert(this.Parameters.Count == 1);
+
+            // Can be VertexField, EdgeField, or VertexSinglePropertyField
+            WColumnReferenceExpression target = this.Parameters[0] as WColumnReferenceExpression;
+            Debug.Assert(target != null);
+
+            int targetIndex = context.LocateColumnReference(target);
+
+            GraphViewExecutionOperator IdOp = new IdOperator(context.CurrentExecutionOperator, targetIndex);
+            context.CurrentExecutionOperator = IdOp;
+            context.AddField(Alias.Value, GremlinKeyword.TableDefaultColumnName, ColumnGraphType.Value);
+
+            return IdOp;
+        }
+    }
+
 
     partial class WAllPropertiesTableReference
     {
@@ -2011,6 +2150,7 @@ namespace GraphView
             DeduplicateLocalOperator dedupLocalOp = new DeduplicateLocalOperator(context.CurrentExecutionOperator,
                 Parameters[0].CompileToFunction(context, dbConnection));
             context.CurrentExecutionOperator = dedupLocalOp;
+            context.AddField(Alias.Value, GremlinKeyword.TableDefaultColumnName, ColumnGraphType.Value);
 
             return dedupLocalOp;
         }
@@ -2094,49 +2234,21 @@ namespace GraphView
             WSelectQueryBlock contextSelect, repeatSelect;
             Split(out contextSelect, out repeatSelect);
 
-            //if (HasAggregateFunctionInTheRepeatSelectQuery(repeatSelect)) {
-            //    throw new QueryCompilationException("The parent of an aggregate function cannot be a repeat operator.");
-            //}
-
-            List<int> inputIndexes = new List<int>();
             QueryCompilationContext rTableContext = new QueryCompilationContext(context);
-            rTableContext.ClearField();
+            rTableContext.CarryOn = true;
 
-            List<WColumnReferenceExpression> columnList = new List<WColumnReferenceExpression>();
+            QueryCompilationContext initalContext = new QueryCompilationContext(context);
+            initalContext.CarryOn = true;
+            GraphViewExecutionOperator getInitialRecordOp = contextSelect.Compile(initalContext, dbConnection);
+
             foreach (WSelectElement selectElement in contextSelect.SelectElements)
             {
                 WSelectScalarExpression selectScalar = selectElement as WSelectScalarExpression;
-                if (selectScalar == null)
-                {
-                    throw new SyntaxErrorException("The SELECT elements of the sub-queries in a repeat table reference must be select scalar elements.");
-                }
+                Debug.Assert(selectScalar != null,
+                    "The SELECT elements of the sub-queries in a repeat table reference must be select scalar elements.");
+                Debug.Assert(selectScalar.ColumnName != null, "selectScalar.ColumnName != null");
 
-                WColumnReferenceExpression columnRef = selectScalar.SelectExpr as WColumnReferenceExpression;
-                if (columnRef != null)
-                {
-                    int index;
-                    if (!context.TryLocateColumnReference(columnRef, out index))
-                        throw new SyntaxErrorException("Syntax Error!!!");
-                    inputIndexes.Add(index);
-
-                    string rColumnName = selectScalar.ColumnName ?? columnRef.ColumnName;
-                    rTableContext.AddField("R", rColumnName, columnRef.ColumnGraphType);
-
-                    columnList.Add(new WColumnReferenceExpression(Alias.Value, rColumnName, columnRef.ColumnGraphType));
-                }
-                else
-                {
-                    WValueExpression nullExpression = selectScalar.SelectExpr as WValueExpression;
-                    if (nullExpression == null)
-                        throw new SyntaxErrorException("The SELECT elements of the sub-queries in a repeat table reference must be column references or WValueExpression.");
-                    if (nullExpression.ToString().Equals("null", StringComparison.OrdinalIgnoreCase))
-                        inputIndexes.Add(-1);
-
-                    string rColumnName = selectScalar.ColumnName ?? columnRef.ColumnName;
-                    rTableContext.AddField("R", rColumnName, ColumnGraphType.Value);
-
-                    columnList.Add(new WColumnReferenceExpression(Alias.Value, rColumnName, ColumnGraphType.Value));
-                }
+                rTableContext.AddField("R", selectScalar.ColumnName, ColumnGraphType.Value);
             }
 
             WRepeatConditionExpression repeatCondition = Parameters[1] as WRepeatConditionExpression;
@@ -2149,24 +2261,28 @@ namespace GraphView
             BooleanFunction emitCondition = repeatCondition.EmitCondition?.CompileToFunction(rTableContext, dbConnection);
             bool emitContext = repeatCondition.EmitContext;
 
+            ConstantSourceOperator tempSourceOp = new ConstantSourceOperator();
+            ContainerOperator innerSourceOp = new ContainerOperator(tempSourceOp);
             GraphViewExecutionOperator innerOp = repeatSelect.Compile(rTableContext, dbConnection);
+            rTableContext.OuterContextOp.SourceEnumerator = innerSourceOp.GetEnumerator();
 
             RepeatOperator repeatOp;
             if (repeatTimes == -1)
-                repeatOp = new RepeatOperator(context.CurrentExecutionOperator, inputIndexes, innerOp,
-                    rTableContext.OuterContextOp, terminationCondition, startFromContext, emitCondition, emitContext);
+                repeatOp = new RepeatOperator(context.CurrentExecutionOperator, initalContext.OuterContextOp, getInitialRecordOp, 
+                    tempSourceOp, innerSourceOp, innerOp, terminationCondition, startFromContext, emitCondition, emitContext);
             else
-                repeatOp = new RepeatOperator(context.CurrentExecutionOperator, inputIndexes, innerOp,
-                    rTableContext.OuterContextOp, repeatTimes, emitCondition, emitContext);
+                repeatOp = new RepeatOperator(context.CurrentExecutionOperator, initalContext.OuterContextOp, getInitialRecordOp, 
+                    tempSourceOp, innerSourceOp, innerOp, repeatTimes, emitCondition, emitContext);
 
             context.CurrentExecutionOperator = repeatOp;
 
-
-            // Updates the raw record layout. The columns of this table-valued function 
-            // are specified by the select elements of the thrid parameter.
-            foreach (WColumnReferenceExpression columnRef in columnList)
+            //
+            // Updates the raw record layout
+            //
+            foreach (WSelectElement selectElement in contextSelect.SelectElements)
             {
-                context.AddField(columnRef.TableReference, columnRef.ColumnName, columnRef.ColumnGraphType);
+                WSelectScalarExpression selectScalar = selectElement as WSelectScalarExpression;
+                context.AddField(Alias.Value, selectScalar.ColumnName, ColumnGraphType.Value);
             }
 
             return repeatOp;
@@ -2188,14 +2304,10 @@ namespace GraphView
             UnfoldOperator unfoldOp = new UnfoldOperator(
                 context.CurrentExecutionOperator,
                 Parameters[0].CompileToFunction(context, dbConnection), 
-                unfoldColumns,
-                GremlinKeyword.TableDefaultColumnName);
+                unfoldColumns);
             context.CurrentExecutionOperator = unfoldOp;
 
-            for (int i = 1; i < this.Parameters.Count; i++)
-            {
-                string columnName = (Parameters[i] as WValueExpression).Value;
-                // TODO: Change to correct ColumnGraphType
+            foreach (string columnName in unfoldColumns) {
                 context.AddField(Alias.Value, columnName, ColumnGraphType.Value);
             }
 
@@ -2540,13 +2652,14 @@ namespace GraphView
                     context.CurrentExecutionOperator, 
                     groupKeyFunction,
                     tempSourceOp, aggregatedSourceOp, aggregateOp, 
-                    this.IsProjectingACollection, 
-                    context.CarryOn ? context.RawRecordLayout.Count : -1);
+                    this.IsProjectingACollection,
+                    context.RawRecordLayout.Count
+                    /*context.CarryOn ? context.RawRecordLayout.Count : -1*/);
 
                 context.CurrentExecutionOperator = groupOp;
 
-                if (!context.CarryOn)
-                    context.ClearField();
+                //if (!context.CarryOn)
+                //    context.ClearField();
                 // Change to correct ColumnGraphType
                 context.AddField(Alias.Value, GremlinKeyword.TableDefaultColumnName, ColumnGraphType.Value);
 
@@ -2728,7 +2841,10 @@ namespace GraphView
         {
             GraphViewExecutionOperator inputOp = context.CurrentExecutionOperator;
             long amountToSample = long.Parse(((WValueExpression)this.Parameters[0]).Value);
-            ScalarFunction byFunction = this.Parameters[1]?.CompileToFunction(context, dbConnection);  // Can be null if no "by" step
+
+            ScalarFunction byFunction = this.Parameters.Count > 1 
+                ? this.Parameters[1].CompileToFunction(context, dbConnection)
+                : null;  // Can be null if no "by" step
 
             GraphViewExecutionOperator sampleOp = new SampleOperator(inputOp, amountToSample, byFunction);
             context.CurrentExecutionOperator = sampleOp;
@@ -2783,11 +2899,42 @@ namespace GraphView
                 orderByElements.Add(new Tuple<ScalarFunction, IComparer>(byFunction, comparer));
             }
 
+            List<string> populateColumns = new List<string> { GraphViewKeywords.KW_TABLE_DEFAULT_COLUMN_NAME };
+            for (int i = this.OrderParameters.Count + 1; i < this.Parameters.Count; i++)
+            {
+                WValueExpression populateColumn = this.Parameters[i] as WValueExpression;
+                Debug.Assert(populateColumn != null, "populateColumn != null");
+
+                if (populateColumn.Value.Equals(GraphViewKeywords.KW_TABLE_DEFAULT_COLUMN_NAME)) {
+                    continue;
+                }
+                populateColumns.Add(populateColumn.Value);
+            }
+
             OrderLocalOperator orderLocalOp = new OrderLocalOperator(context.CurrentExecutionOperator, inputObjectIndex,
-                orderByElements);
+                orderByElements, populateColumns);
             context.CurrentExecutionOperator = orderLocalOp;
+            foreach (string columnName in populateColumns) {
+                context.AddField(Alias.Value, columnName, ColumnGraphType.Value);
+            }
 
             return orderLocalOp;
+        }
+    }
+
+    partial class WCountLocalTableReference
+    {
+        private const int InputObjectParameterIndex = 0;
+
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        {
+            WColumnReferenceExpression inputObjectParameter = this.Parameters[InputObjectParameterIndex] as WColumnReferenceExpression;
+            Debug.Assert(inputObjectParameter != null, "inputObjectParameter != null");
+            int inputObjectIndex = context.LocateColumnReference(inputObjectParameter);
+
+            CountLocalOperator countLocalOp = new CountLocalOperator(context.CurrentExecutionOperator, inputObjectIndex);
+            context.AddField(this.Alias.Value, GremlinKeyword.TableDefaultColumnName, ColumnGraphType.Value);
+            return countLocalOp;
         }
     }
 
@@ -2806,6 +2953,18 @@ namespace GraphView
             bool isLocal = localFlag > 0;
             bool isTail = tailFlag > 0;
 
+            List<string> populateColumns = new List<string> { GraphViewKeywords.KW_TABLE_DEFAULT_COLUMN_NAME };
+            for (int i = 5; i < this.Parameters.Count; i++)
+            {
+                WValueExpression populateColumn = this.Parameters[i] as WValueExpression;
+                Debug.Assert(populateColumn != null, "populateColumn != null");
+
+                if (populateColumn.Value.Equals(GraphViewKeywords.KW_TABLE_DEFAULT_COLUMN_NAME)) {
+                    continue;
+                }
+                populateColumns.Add(populateColumn.Value);
+            }
+
             //
             // Compilation of Tail op, which returns lastN elements
             //
@@ -2816,8 +2975,12 @@ namespace GraphView
                 if (isLocal)
                 {
                     TailLocalOperator tailLocalOp = new TailLocalOperator(context.CurrentExecutionOperator,
-                        context.LocateColumnReference(inputCollection), lastN);
+                        context.LocateColumnReference(inputCollection), lastN, populateColumns);
                     context.CurrentExecutionOperator = tailLocalOp;
+                    foreach (string columnName in populateColumns) {
+                        context.AddField(Alias.Value, columnName, ColumnGraphType.Value);
+                    }
+
                     return tailLocalOp;
                 }
                 else
@@ -2850,14 +3013,16 @@ namespace GraphView
                 if (isLocal)
                 {
                     RangeLocalOperator rangeLocalOp = new RangeLocalOperator(context.CurrentExecutionOperator,
-                        context.LocateColumnReference(inputCollection), startIndex, count);
+                        context.LocateColumnReference(inputCollection), startIndex, count, populateColumns);
                     context.CurrentExecutionOperator = rangeLocalOp;
+                    foreach (string columnName in populateColumns) {
+                        context.AddField(Alias.Value, columnName, ColumnGraphType.Value);
+                    }
 
                     return rangeLocalOp;;
                 }
                 else
                 {
-
                     RangeOperator rangeOp = new RangeOperator(context.CurrentExecutionOperator, startIndex, count);
                     context.CurrentExecutionOperator = rangeOp;
 
@@ -3242,6 +3407,38 @@ namespace GraphView
             }
 
             return selectOneOp;
+        }
+    }
+
+    partial class WSampleLocalTableReference
+    {
+        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+        {
+            WColumnReferenceExpression inputCollection = Parameters[0] as WColumnReferenceExpression;
+            Debug.Assert(inputCollection != null, "inputCollection != null");
+            int inputCollectionIndex = context.LocateColumnReference(inputCollection);
+            int amountToSample = int.Parse((Parameters[1] as WValueExpression).Value);
+
+            List<string> populateColumns = new List<string> { GraphViewKeywords.KW_TABLE_DEFAULT_COLUMN_NAME };
+            for (int i = 2; i < this.Parameters.Count; i++)
+            {
+                WValueExpression populateColumn = this.Parameters[i] as WValueExpression;
+                Debug.Assert(populateColumn != null, "populateColumn != null");
+
+                if (populateColumn.Value.Equals(GraphViewKeywords.KW_TABLE_DEFAULT_COLUMN_NAME)) {
+                    continue;
+                }
+                populateColumns.Add(populateColumn.Value);
+            }
+
+            SampleLocalOperator sampleLocalOp = new SampleLocalOperator(context.CurrentExecutionOperator,
+                inputCollectionIndex, amountToSample, populateColumns);
+            context.CurrentExecutionOperator = sampleLocalOp;
+            foreach (string columnName in populateColumns) {
+                context.AddField(Alias.Value, columnName, ColumnGraphType.Value);
+            }
+
+            return sampleLocalOp;
         }
     }
 }

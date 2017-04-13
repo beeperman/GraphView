@@ -19,15 +19,16 @@ namespace GraphViewUnitTest.Gremlin
         /// Generates and Loads the correct Graph Db, on the local document Db instance.
         /// </summary>
         /// <param name="graphData">The type of graph data to load from among the TinkerPop samples.</param>
-        public static void LoadGraphData(GraphData graphData)
+        /// <param name="useReverseEdge"></param>
+        public static void LoadGraphData(GraphData graphData, bool useReverseEdge)
         {
             switch (graphData)
             {
                 case GraphData.CLASSIC:
-                    LoadClassicGraphData();
+                    LoadClassicGraphData(useReverseEdge);
                     break;
                 case GraphData.MODERN:
-                    LoadModernGraphData();
+                    LoadModernGraphData(useReverseEdge);
                     break;
                 case GraphData.CREW:
                     throw new NotImplementedException("Crew requires supporting properties as documents themselves! This implementation currently does not support that functionality!!!");
@@ -61,7 +62,7 @@ namespace GraphViewUnitTest.Gremlin
             }
         }
 
-        private static void LoadClassicGraphData()
+        private static void LoadClassicGraphData(bool useReverseEdge)
         {
             GraphViewConnection connection = new GraphViewConnection(
                 //ConfigurationManager.AppSettings["DocDBEndPoint"],
@@ -69,7 +70,8 @@ namespace GraphViewUnitTest.Gremlin
                 //ConfigurationManager.AppSettings["DocDBKey"],
                 ConfigurationManager.AppSettings["DocDBKeyLocal"],
                 ConfigurationManager.AppSettings["DocDBDatabaseGremlin"],
-                ConfigurationManager.AppSettings["DocDBCollectionClassic"]);
+                ConfigurationManager.AppSettings["DocDBCollectionClassic"],
+                useReverseEdges: useReverseEdge);
             connection.ResetCollection();
 
             GraphViewCommand graphCommand = new GraphViewCommand(connection);
@@ -91,7 +93,7 @@ namespace GraphViewUnitTest.Gremlin
             connection.Dispose();
         }
 
-        private static void LoadModernGraphData()
+        private static void LoadModernGraphData(bool useReverseEdge)
         {
             GraphViewConnection connection = new GraphViewConnection(
                 //ConfigurationManager.AppSettings["DocDBEndPoint"],
@@ -99,7 +101,8 @@ namespace GraphViewUnitTest.Gremlin
                 //ConfigurationManager.AppSettings["DocDBKey"],
                 ConfigurationManager.AppSettings["DocDBKeyLocal"],
                 ConfigurationManager.AppSettings["DocDBDatabaseGremlin"],
-                ConfigurationManager.AppSettings["DocDBCollectionModern"]);
+                ConfigurationManager.AppSettings["DocDBCollectionModern"],
+                useReverseEdges: useReverseEdge);
             connection.ResetCollection();
 
             GraphViewCommand graphCommand = new GraphViewCommand(connection);

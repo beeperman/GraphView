@@ -20,9 +20,9 @@ namespace GraphView
 
         internal virtual void InheritedVariableFromParent(GremlinToSqlContext parentContext)
         {
-            if (this is GremlinParentContextOp)
+            GremlinParentContextOp rootAsContextOp = this as GremlinParentContextOp;
+            if (rootAsContextOp != null)
             {
-                GremlinParentContextOp rootAsContextOp = this as GremlinParentContextOp;
                 rootAsContextOp.InheritedPivotVariable = parentContext.PivotVariable;
                 rootAsContextOp.ParentContext = parentContext;
             }
@@ -30,9 +30,9 @@ namespace GraphView
 
         internal virtual void InheritedContextFromParent(GremlinToSqlContext parentContext)
         {
-            if (this is GremlinParentContextOp)
+            GremlinParentContextOp rootAsContextOp = this as GremlinParentContextOp;
+            if (rootAsContextOp != null)
             {
-                GremlinParentContextOp rootAsContextOp = this as GremlinParentContextOp;
                 rootAsContextOp.InheritedContext = parentContext.Duplicate();
             }
         }
@@ -44,12 +44,12 @@ namespace GraphView
 
         public virtual void ModulateBy(GraphTraversal2 traversal)
         {
-            throw new NotImplementedException();
+            throw new SyntaxErrorException($"{this} can't be modulated with by-step");
         }
 
         public virtual void ModulateBy(GraphTraversal2 traversal, IComparer order)
         {
-            throw new NotImplementedException();
+            throw new SyntaxErrorException($"{this} can't be modulated with by-step");
         }
 
         public virtual void ModulateBy(GremlinKeyword.Order order)
@@ -123,14 +123,12 @@ namespace GraphView
         internal override GremlinToSqlContext GetContext()
         {
             if (InheritedContext != null) return InheritedContext;
-            GremlinToSqlContext newContext = new GremlinToSqlContext();
-            newContext.ParentContext = ParentContext;
+            GremlinToSqlContext newContext = new GremlinToSqlContext {ParentContext = ParentContext};
             if (InheritedPivotVariable != null)
             {
                 GremlinContextVariable newVariable = new GremlinContextVariable(InheritedPivotVariable);
-                newVariable.HomeContext = newContext;
                 newContext.VariableList.Add(newVariable);
-                newContext.PivotVariable = newVariable;
+                newContext.SetPivotVariable(newVariable);
             } 
             return newContext;
         }

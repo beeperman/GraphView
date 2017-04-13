@@ -16,6 +16,12 @@ namespace GraphView
         {
             InputVariable = inputVariable;
             Injection = injection;
+            ProjectedProperties.Add(GremlinKeyword.TableDefaultColumnName);
+        }
+
+        internal override void Populate(string property)
+        {
+            return;
         }
 
         public override WTableReference ToTableReference()
@@ -24,12 +30,12 @@ namespace GraphView
 
             if (InputVariable == null)
             {
-                //g.Inject(1)
+                //g.Inject()
                 parameters.Add(SqlUtil.GetValueExpr(null));
             }
             else
             {
-                parameters.Add(InputVariable.DefaultProjection().ToScalarExpression());
+                parameters.Add(InputVariable.GetDefaultProjection().ToScalarExpression());
             }
 
             bool isList = false;

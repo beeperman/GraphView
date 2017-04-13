@@ -18,16 +18,24 @@ namespace GraphView
             Labels.Add(sideEffectKey);
         }
 
-        internal override List<GremlinVariable> FetchVarsFromCurrAndChildContext()
+        internal override List<GremlinVariable> FetchAllVars()
         {
-            return PathVariable.FetchVarsFromCurrAndChildContext();
+            List<GremlinVariable> variableList = new List<GremlinVariable>() {this};
+            variableList.AddRange(PathVariable.FetchAllVars());
+            return variableList;
+        }
+
+        internal override void Populate(string property)
+        {
+            PathVariable.Populate(property);
+            base.Populate(property);
         }
 
         public override WTableReference ToTableReference()
         {
             List<WScalarExpression> parameters = new List<WScalarExpression>();
             parameters.Add(SqlUtil.GetValueExpr(SideEffectKey));
-            parameters.Add(PathVariable.DefaultProjection().ToScalarExpression());
+            parameters.Add(PathVariable.GetDefaultProjection().ToScalarExpression());
             var tableRef = SqlUtil.GetFunctionTableReference(GremlinKeyword.func.Tree, parameters, GetVariableName());
             return SqlUtil.GetCrossApplyTableReference(tableRef);
         }

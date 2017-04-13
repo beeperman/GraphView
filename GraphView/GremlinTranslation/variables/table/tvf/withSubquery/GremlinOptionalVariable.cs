@@ -18,50 +18,46 @@ namespace GraphView
         {
             OptionalContext = context;
             InputVariable = inputVariable;
-            OptionalContext.HomeVariable = this;
         }
 
-        internal override GremlinVariable GetAndPopulatePath()
+        internal override void PopulateStepProperty(string property)
         {
-            GremlinPathVariable pathVariable = OptionalContext.PopulateGremlinPath();
-            return new GremlinMultiStepVariable(pathVariable, this);
+            OptionalContext.ContextLocalPath.PopulateStepProperty(property);
+        }
+
+        internal override void PopulateLocalPath()
+        {
+            if (ProjectedProperties.Contains(GremlinKeyword.Path)) return;
+            ProjectedProperties.Add(GremlinKeyword.Path);
+            OptionalContext.PopulateLocalPath();
         }
 
         internal override void Populate(string property)
         {
-            if (ProjectedProperties.Contains(property)) return;
             base.Populate(property);
 
             InputVariable.Populate(property);
             OptionalContext.Populate(property);
         }
 
-        //internal override GremlinVariableType GetUnfoldVariableType()
-        //{
-        //    throw new NotImplementedException();
-        //}
-
-        internal override List<GremlinVariable> PopulateAllTaggedVariable(string label)
+        internal override WScalarExpression ToStepScalarExpr()
         {
-            return OptionalContext.SelectVarsFromCurrAndChildContext(label);
+            return SqlUtil.GetColumnReferenceExpr(GetVariableName(), GremlinKeyword.Path);
         }
 
-        internal override List<GremlinVariable> FetchVarsFromCurrAndChildContext()
+        internal override List<GremlinVariable> FetchAllVars()
         {
-            return OptionalContext == null ? new List<GremlinVariable>() :OptionalContext.FetchVarsFromCurrAndChildContext();
+            List<GremlinVariable> variableList = new List<GremlinVariable>() { this };
+            variableList.Add(InputVariable);
+            variableList.AddRange(OptionalContext.FetchAllVars());
+            return variableList;
         }
 
-        internal override bool ContainsLabel(string label)
+        internal override List<GremlinVariable> FetchAllTableVars()
         {
-            if (base.ContainsLabel(label)) return true;
-            foreach (var variable in OptionalContext.VariableList)
-            {
-                if (variable.ContainsLabel(label))
-                {
-                    return true;
-                }
-            }
-            return false;
+            List<GremlinVariable> variableList = new List<GremlinVariable>() { this };
+            variableList.AddRange(OptionalContext.FetchAllTableVars());
+            return variableList;
         }
 
         public override WTableReference ToTableReference()
@@ -72,11 +68,10 @@ namespace GraphView
             {
                 if (projectProperty == GremlinKeyword.TableDefaultColumnName)
                 {
-                    firstQueryExpr.SelectElements.Add(SqlUtil.GetSelectScalarExpr(InputVariable.DefaultProjection().ToScalarExpression(),
+                    firstQueryExpr.SelectElements.Add(SqlUtil.GetSelectScalarExpr(InputVariable.GetDefaultProjection().ToScalarExpression(),
                         GremlinKeyword.TableDefaultColumnName));
                 }
-                else
-                if (InputVariable.ProjectedProperties.Contains(projectProperty))
+                else if (InputVariable.ProjectedProperties.Contains(projectProperty))
                 {
                     firstQueryExpr.SelectElements.Add(
                         SqlUtil.GetSelectScalarExpr(
@@ -89,17 +84,34 @@ namespace GraphView
                 }
             }
 
-            if (OptionalContext.IsPopulateGremlinPath)
+            WSelectQueryBlock secondQueryExpr = OptionalContext.ToSelectQueryBlock();
+            bool HasAggregateFunctionAsChildren = false;
+            foreach (var variable in OptionalContext.TableReferences)
             {
-                firstQueryExpr.SelectElements.Add(SqlUtil.GetSelectScalarExpr(SqlUtil.GetValueExpr(null), GremlinKeyword.Path));
+                if (variable is GremlinFoldVariable
+                    || variable is GremlinCountVariable
+                    || variable is GremlinMinVariable
+                    || variable is GremlinMaxVariable
+                    || variable is GremlinSumVariable
+                    || variable is GremlinMeanVariable
+                    || variable is GremlinTreeVariable)
+                {
+                    HasAggregateFunctionAsChildren = true;
+                }
+                var group = variable as GremlinGroupVariable;
+                if (group != null && group.SideEffectKey == null)
+                {
+                    HasAggregateFunctionAsChildren = true;
+                }
             }
 
-            WSelectQueryBlock secondQueryExpr = OptionalContext.ToSelectQueryBlock(ProjectedProperties);
             var WBinaryQueryExpression = SqlUtil.GetBinaryQueryExpr(firstQueryExpr, secondQueryExpr);
 
             List<WScalarExpression> parameters = new List<WScalarExpression>();
             parameters.Add(SqlUtil.GetScalarSubquery(WBinaryQueryExpression));
             var tableRef = SqlUtil.GetFunctionTableReference(GremlinKeyword.func.Optional, parameters, GetVariableName());
+            ((WOptionalTableReference) tableRef).HasAggregateFunctionAsChildren = HasAggregateFunctionAsChildren;
+
             return SqlUtil.GetCrossApplyTableReference(tableRef);
         }
     }

@@ -6,14 +6,85 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Azure.Documents;
 using Newtonsoft.Json.Linq;
+using static GraphView.GraphViewKeywords;
 
 namespace GraphView
 {
 
+    /// <summary>
+    /// The vertex object cache is per-connection.
+    /// NOTE: The vertex object cache is cleared after every GraphViewCommand.
+    /// NOTE: A VertexObjectCache is accessed by only one thread. lock is not necessary.
+    /// </summary>
     internal sealed class VertexObjectCache
     {
         public GraphViewConnection Connection { get; }
+
+        private readonly Dictionary<string, string> _currentEtags = new Dictionary<string, string>();
+
+        public string GetCurrentEtag(string docId)
+        {
+            Debug.Assert(docId != null);
+            return this._currentEtags[docId];
+        }
+
+        public string TryGetCurrentEtag(string docId)
+        {
+            Debug.Assert(docId != null);
+
+            string etag;
+            this._currentEtags.TryGetValue(docId, out etag);
+            return etag;
+        }
+
+        public bool TryRemoveEtag(string docId)
+        {
+            Debug.Assert(docId != null);
+
+            return this._currentEtags.Remove(docId);
+        }
+
+        public void RemoveEtag(string docId)
+        {
+            Debug.Assert(docId != null);
+            Debug.Assert(this._currentEtags.ContainsKey(docId));
+
+            this._currentEtags.Remove(docId);
+        }
+
+        public void SaveCurrentEtagNoOverride(JObject docObject)
+        {
+            string docId = (string)docObject[KW_DOC_ID];
+            string etag = (string)docObject[KW_DOC_ETAG];
+            Debug.Assert(docId != null);
+            Debug.Assert(etag != null);
+
+            if (!this._currentEtags.ContainsKey(docId))
+            {
+                this._currentEtags.Add(docId, etag);
+            }
+        }
+
+        public void UpdateCurrentEtag(Document document)
+        {
+            string docId = document.Id;
+            string etag = document.ETag;
+            Debug.Assert(docId != null);
+            Debug.Assert(etag != null);
+
+            this._currentEtags[docId] = etag;
+        }
+
+        public void UpdateCurrentEtag(string docId, string etag)
+        {
+            Debug.Assert(docId != null);
+            Debug.Assert(etag != null);
+
+            this._currentEtags[docId] = etag;
+        }
+
 
         //
         // NOTE: _cachedVertex is ALWAYS up-to-date with DocDB!
@@ -22,88 +93,60 @@ namespace GraphView
         //
         private readonly Dictionary<string, VertexField> _cachedVertexField = new Dictionary<string, VertexField>();
 
-        private readonly ReaderWriterLockSlim _lock = new ReaderWriterLockSlim();
-
-        
-        private static readonly ConcurrentDictionary<string, Dictionary<string, VertexField>> __caches =
-            new ConcurrentDictionary<string, Dictionary<string, VertexField>>();
-
-
-        private VertexObjectCache(GraphViewConnection dbConnection, Dictionary<string, VertexField> cachedVertexField)
+        public VertexObjectCache(GraphViewConnection dbConnection)
         {
             this.Connection = dbConnection;
         }
 
-        /// <summary>
-        /// Construct a VertexCache from a connection.
-        /// NOTE: VertexCache is per-collection, but for the same colloction, it's cross-connection
-        /// </summary>
-        /// <param name="connection"></param>
-        /// <returns></returns>
-        public static VertexObjectCache FromConnection(GraphViewConnection connection)
+
+        public VertexField GetVertexField(string vertexId)
         {
-            Debug.Assert(connection.Identifier != null, "The connection's identifier must have been initialized");
-
-            // MUST NOT use __caches.GetOrAdd() here!
-            var cachedVertexField = new Dictionary<string, VertexField>();
-            if (!__caches.TryAdd(connection.Identifier, cachedVertexField)) {
-                cachedVertexField = __caches[connection.Identifier];
+            VertexField result;
+            if (!this._cachedVertexField.TryGetValue(vertexId, out result)) {
+                JObject vertexObject = this.Connection.RetrieveDocumentById(vertexId);
+                result = new VertexField(this.Connection, vertexObject);
+                this._cachedVertexField.Add(vertexId, result);
             }
-
-            return new VertexObjectCache(connection, cachedVertexField);
+            return result;
         }
 
-        
-        public VertexField GetVertexField(string vertexId, JObject currVertexObject = null, Dictionary<string, JObject> edgeDocSet = null)
+        public VertexField AddOrUpdateVertexField(string vertexId, JObject vertexObject)
         {
-            try {
-                this._lock.EnterUpgradeableReadLock();
-
-                try {
-                    this._lock.EnterWriteLock();
-
-                    VertexField result;
-                    if (!_cachedVertexField.TryGetValue(vertexId, out result)) {
-                        JObject vertexObject = currVertexObject ?? this.Connection.RetrieveDocumentById(vertexId);
-                        result = FieldObject.ConstructVertexField(this.Connection, vertexObject, edgeDocSet);
-                        _cachedVertexField.Add(vertexId, result);
-                    }
-                    return result;
-                }
-                finally {
-                    if (this._lock.IsWriteLockHeld) {
-                        this._lock.ExitWriteLock();
-                    }
-                }
+            VertexField vertexField;
+            if (this._cachedVertexField.TryGetValue(vertexId, out vertexField)) {
+                // TODO: Update?
             }
-            finally {
-                if (this._lock.IsUpgradeableReadLockHeld) {
-                    this._lock.ExitUpgradeableReadLock();
-                }
+            else {
+                //
+                // Update saved etags when Constructing a vertex field
+                // NOTE: For each vertex document, only ONE VertexField will be constructed ever.
+                //
+                this.SaveCurrentEtagNoOverride(vertexObject);
+
+                vertexField = new VertexField(this.Connection, vertexObject);
+                this._cachedVertexField.Add(vertexId, vertexField);
             }
+            return vertexField;
+        }
+
+        public bool TryGetVertexField(string vertexId, out VertexField vertexField)
+        {
+            return this._cachedVertexField.TryGetValue(vertexId, out vertexField);
         }
 
         public bool TryRemoveVertexField(string vertexId)
         {
-            try {
-                this._lock.EnterWriteLock();
 #if DEBUG
-                VertexField vertexField;
-                bool found = this._cachedVertexField.TryGetValue(vertexId, out vertexField);
-                if (found) {
-                    Debug.Assert(!vertexField.AdjacencyList.AllEdges.Any(), "The deleted edge's should contain no outgoing edges");
-                    Debug.Assert(!vertexField.RevAdjacencyList.AllEdges.Any(), "The deleted edge's should contain no incoming edges");
-                }
-                return found;
+            VertexField vertexField;
+            bool found = this._cachedVertexField.TryGetValue(vertexId, out vertexField);
+            if (found) {
+                Debug.Assert(!vertexField.AdjacencyList.AllEdges.Any(), "The deleted edge's should contain no outgoing edges");
+                Debug.Assert(!vertexField.RevAdjacencyList.AllEdges.Any(), "The deleted edge's should contain no incoming edges");
+            }
+            return found;
 #else
-                return this._cachedVertexField.Remove(vertexId);
+            return this._cachedVertexField.Remove(vertexId);
 #endif
-            }
-            finally {
-                if (this._lock.IsWriteLockHeld) {
-                    this._lock.ExitWriteLock();
-                }
-            }
         }
     }
 

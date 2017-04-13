@@ -19,10 +19,17 @@ namespace GraphView
             PropertyKeys = propertyKeys;
         }
 
+        internal override List<GremlinVariable> FetchAllVars()
+        {
+            List<GremlinVariable> variableList = new List<GremlinVariable>() { this };
+            variableList.AddRange(InputVariable.FetchAllVars());
+            return variableList;
+        }
+
         public override WTableReference ToTableReference()
         {
             List<WScalarExpression> parameters = new List<WScalarExpression>();
-            parameters.Add(InputVariable.DefaultProjection().ToScalarExpression());
+            parameters.Add(InputVariable.GetDefaultProjection().ToScalarExpression());
             parameters.Add(SqlUtil.GetValueExpr(IsIncludeTokens ? 1: -1));
             foreach (var propertyKey in PropertyKeys)
             {

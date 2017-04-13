@@ -18,7 +18,8 @@ namespace GraphView
                 [KW_VERTEX_LABEL] = vertexLabel
             };
 
-            projectedFieldList = new List<string>(GraphViewReservedProperties.ReservedNodeProperties);
+            projectedFieldList = new List<string>(GraphViewReservedProperties.InitialPopulateNodeProperties);
+            projectedFieldList.Add(GremlinKeyword.Label);
 
             foreach (WPropertyExpression vertexProperty in vertexProperties) {
                 Debug.Assert(vertexProperty.Cardinality == GremlinKeyword.PropertyCardinality.List);
@@ -54,7 +55,9 @@ namespace GraphView
 
             vertexObject[KW_VERTEX_EDGE] = new JArray();
             vertexObject[KW_VERTEX_REV_EDGE] = new JArray();
-            vertexObject[KW_VERTEX_NEXTOFFSET] = 0;
+            vertexObject[KW_VERTEX_EDGE_SPILLED] = false;
+            vertexObject[KW_VERTEX_REVEDGE_SPILLED] = false;
+            //vertexObject[KW_VERTEX_NEXTOFFSET] = 0;
 
             return vertexObject;
         }
@@ -90,13 +93,13 @@ namespace GraphView
                 projectedField);
             context.CurrentExecutionOperator = addVOp;
 
-            context.AddField(Alias.Value, GremlinKeyword.NodeID, ColumnGraphType.VertexId);
-            context.AddField(Alias.Value, GremlinKeyword.Label, ColumnGraphType.Value);
-            context.AddField(Alias.Value, GremlinKeyword.EdgeAdj, ColumnGraphType.OutAdjacencyList);
-            context.AddField(Alias.Value, GremlinKeyword.ReverseEdgeAdj, ColumnGraphType.InAdjacencyList);
-            context.AddField(Alias.Value, GremlinKeyword.Star, ColumnGraphType.VertexObject);
-            for (var i = GraphViewReservedProperties.ReservedNodeProperties.Count; i < projectedField.Count; i++) {
-                context.AddField(Alias.Value, projectedField[i], ColumnGraphType.Value);
+            for (int i = 0; i < projectedField.Count; i++)
+            {
+                string propertyName = projectedField[i];
+                ColumnGraphType columnGraphType = GraphViewReservedProperties.IsNodeReservedProperty(propertyName)
+                    ? GraphViewReservedProperties.ReservedNodePropertiesColumnGraphTypes[propertyName]
+                    : ColumnGraphType.Value;
+                context.AddField(Alias.Value, propertyName, columnGraphType);
             }
 
             return addVOp;
@@ -109,27 +112,36 @@ namespace GraphView
         internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
         {
             List<string> projectedField;
-            var edgeJsonObject = ConstructEdgeJsonObject(out projectedField);  // metadata remains missing
+            JObject edgeJsonObject = ConstructEdgeJsonObject(out projectedField);  // metadata remains missing
 
-            var srcSubQuery = Parameters[0] as WScalarSubquery;
-            var sinkSubQuery = Parameters[1] as WScalarSubquery;
+            WScalarSubquery srcSubQuery = Parameters[0] as WScalarSubquery;
+            WScalarSubquery sinkSubQuery = Parameters[1] as WScalarSubquery;
             if (srcSubQuery == null || sinkSubQuery == null)
                 throw new SyntaxErrorException("The first two parameters of AddE can only be WScalarSubquery.");
-            var otherVTagParameter = Parameters[2] as WValueExpression;
-            var otherVTag = int.Parse(otherVTagParameter.Value);
+            WValueExpression otherVTagParameter = Parameters[2] as WValueExpression;
+            Debug.Assert(otherVTagParameter != null, "otherVTagParameter != null");
+            //
+            // if otherVTag == 0, this newly added edge's otherV() is the src vertex.
+            // Otherwise, it's the sink vertex
+            //
+            int otherVTag = int.Parse(otherVTagParameter.Value);
 
-            var srcSubQueryFunction = srcSubQuery.CompileToFunction(context, dbConnection);
-            var sinkSubQueryFunction = sinkSubQuery.CompileToFunction(context, dbConnection);
+            QueryCompilationContext srcSubContext = new QueryCompilationContext(context);
+            GraphViewExecutionOperator srcSubQueryOp = srcSubQuery.SubQueryExpr.Compile(srcSubContext, dbConnection);
 
-            GraphViewExecutionOperator addEOp = new AddEOperator(context.CurrentExecutionOperator,
-                dbConnection, srcSubQueryFunction, sinkSubQueryFunction, otherVTag, edgeJsonObject, projectedField);
+            QueryCompilationContext sinkSubContext = new QueryCompilationContext(context);
+            GraphViewExecutionOperator sinkSubQueryOp = sinkSubQuery.SubQueryExpr.Compile(sinkSubContext, dbConnection);
+
+            GraphViewExecutionOperator addEOp = new AddEOperator(context.CurrentExecutionOperator, dbConnection,
+                srcSubContext.OuterContextOp, srcSubQueryOp, sinkSubContext.OuterContextOp, sinkSubQueryOp, 
+                otherVTag, edgeJsonObject, projectedField);
             context.CurrentExecutionOperator = addEOp;
 
             // Update context's record layout
             context.AddField(Alias.Value, GremlinKeyword.EdgeSourceV, ColumnGraphType.EdgeSource);
             context.AddField(Alias.Value, GremlinKeyword.EdgeSinkV, ColumnGraphType.EdgeSink);
             context.AddField(Alias.Value, GremlinKeyword.EdgeOtherV, ColumnGraphType.Value);
-            context.AddField(Alias.Value, GremlinKeyword.EdgeOffset, ColumnGraphType.EdgeOffset);
+            context.AddField(Alias.Value, GremlinKeyword.EdgeID, ColumnGraphType.EdgeId);
             context.AddField(Alias.Value, GremlinKeyword.Star, ColumnGraphType.EdgeObject);
             for (var i = GraphViewReservedProperties.ReservedEdgeProperties.Count; i < projectedField.Count; i++)
             {
@@ -185,21 +197,21 @@ namespace GraphView
         }
     }
 
-    partial class WDropEdgeTableReference
-    {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
-        {
-            var srcIdParameter = Parameters[0] as WColumnReferenceExpression;
-            var edgeOffsetParameter = Parameters[1] as WColumnReferenceExpression;
-            var srcIdIndex = context.LocateColumnReference(srcIdParameter);
-            var edgeOffsetIndex = context.LocateColumnReference(edgeOffsetParameter);
+    //partial class WDropEdgeTableReference
+    //{
+    //    internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+    //    {
+    //        var srcIdParameter = Parameters[0] as WColumnReferenceExpression;
+    //        var edgeOffsetParameter = Parameters[1] as WColumnReferenceExpression;
+    //        var srcIdIndex = context.LocateColumnReference(srcIdParameter);
+    //        var edgeOffsetIndex = context.LocateColumnReference(edgeOffsetParameter);
 
-            var dropEdgeOp = new DropEdgeOperator(context.CurrentExecutionOperator, dbConnection, srcIdIndex, edgeOffsetIndex);
-            context.CurrentExecutionOperator = dropEdgeOp;
+    //        var dropEdgeOp = new DropEdgeOperator(context.CurrentExecutionOperator, dbConnection, srcIdIndex, edgeOffsetIndex);
+    //        context.CurrentExecutionOperator = dropEdgeOp;
 
-            return dropEdgeOp;
-        }
-    }
+    //        return dropEdgeOp;
+    //    }
+    //}
 
     //partial class WUpdateVertexPropertiesTableReference
     //{
@@ -230,36 +242,36 @@ namespace GraphView
     //    }
     //}
 
-    partial class WUpdateEdgePropertiesTableReference
-    {
-        internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
-        {
-            var srcIdParameter = Parameters[0] as WColumnReferenceExpression;
-            var edgeOffsetParameter = Parameters[1] as WColumnReferenceExpression;
-            var srcIdIndex = context.LocateColumnReference(srcIdParameter);
-            var edgeOffsetIndex = context.LocateColumnReference(edgeOffsetParameter);
-            var edgeAlias = edgeOffsetParameter.TableReference;
-            var propertiesList = new List<Tuple<WValueExpression, WValueExpression, int>>();
+    //partial class WUpdateEdgePropertiesTableReference
+    //{
+    //    internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
+    //    {
+    //        var srcIdParameter = Parameters[0] as WColumnReferenceExpression;
+    //        var edgeOffsetParameter = Parameters[1] as WColumnReferenceExpression;
+    //        var srcIdIndex = context.LocateColumnReference(srcIdParameter);
+    //        var edgeOffsetIndex = context.LocateColumnReference(edgeOffsetParameter);
+    //        var edgeAlias = edgeOffsetParameter.TableReference;
+    //        var propertiesList = new List<Tuple<WValueExpression, WValueExpression, int>>();
 
-            for (var i = 2; i < Parameters.Count; i += 2)
-            {
-                var keyExpression = Parameters[i] as WValueExpression;
-                var valueExpression = Parameters[i + 1] as WValueExpression;
+    //        for (var i = 2; i < Parameters.Count; i += 2)
+    //        {
+    //            var keyExpression = Parameters[i] as WValueExpression;
+    //            var valueExpression = Parameters[i + 1] as WValueExpression;
 
-                int propertyIndex;
-                if (!context.TryLocateColumnReference(new WColumnReferenceExpression(edgeAlias, keyExpression.Value), out propertyIndex))
-                    propertyIndex = -1;
+    //            int propertyIndex;
+    //            if (!context.TryLocateColumnReference(new WColumnReferenceExpression(edgeAlias, keyExpression.Value), out propertyIndex))
+    //                propertyIndex = -1;
 
-                propertiesList.Add(new Tuple<WValueExpression, WValueExpression, int>(keyExpression, valueExpression, propertyIndex));
-            }
+    //            propertiesList.Add(new Tuple<WValueExpression, WValueExpression, int>(keyExpression, valueExpression, propertyIndex));
+    //        }
 
-            var updateEdgePropertiesOp = new UpdateEdgePropertiesOperator(context.CurrentExecutionOperator, dbConnection,
-                srcIdIndex, edgeOffsetIndex, propertiesList);
-            context.CurrentExecutionOperator = updateEdgePropertiesOp;
+    //        var updateEdgePropertiesOp = new UpdateEdgePropertiesOperator(context.CurrentExecutionOperator, dbConnection,
+    //            srcIdIndex, edgeOffsetIndex, propertiesList);
+    //        context.CurrentExecutionOperator = updateEdgePropertiesOp;
 
-            return updateEdgePropertiesOp;
-        }
-    }
+    //        return updateEdgePropertiesOp;
+    //    }
+    //}
 
 
     partial class WUpdatePropertiesTableReference
@@ -437,7 +449,7 @@ namespace GraphView
 
     //    //    context.AddField("", "sourceId", ColumnGraphType.VertexId);
     //    //    context.AddField("", "sinkId", ColumnGraphType.VertexId);
-    //    //    context.AddField("", "edgeOffset", ColumnGraphType.EdgeOffset);
+    //    //    context.AddField("", "edgeOffset", ColumnGraphType.EdgeId);
 
     //    //    return insertEdgeOp;
     //    //}

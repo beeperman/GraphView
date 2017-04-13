@@ -19,7 +19,7 @@ namespace GraphView
         public const string EdgeSourceV = "_source";
         public const string EdgeSinkV = "_sink";
         public const string EdgeOtherV = "_other";
-        public const string EdgeOffset = "_offset";
+        //public const string EdgeOffset = "_offset";
         public const string NodeID = "id";
         public const string EdgeAdj = "_edge";
         public const string ReverseEdgeAdj = "_reverse_edge";
@@ -44,6 +44,7 @@ namespace GraphView
             public const string InV = "InV";
             public const string BothV = "BothV";
             public const string EtoV = "EtoV";
+            public const string V = "V";
             public const string Optional = "Optional";
             public const string Properties = "Properties";
             public const string AllProperties = "AllProperties";
@@ -102,6 +103,7 @@ namespace GraphView
             public const string Choose = "Choose";
             public const string ChooseWithOptions = "ChooseWithOptions";
             public const string Select = "Select";
+            public const string SelectOne = "SelectOne";
             public const string SelectColumn = "SelectColumn";
             public const string GraphViewId = "Id";
             public const string GraphViewLabel = "Label";

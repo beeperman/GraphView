@@ -9,21 +9,11 @@ namespace GraphView
 {
     internal class GremlinOrOp : GremlinTranslationOperator
     {
-        public List<GraphTraversal2> OrTraversals { get; set; }
-        public GraphTraversal2 FirstTraversal { get; set; }
-        public GraphTraversal2 SecondTraversal { get; set; }
-        public bool IsInfix { get; set; }
+        public List<GraphTraversal2> OrTraversals { get; set; } = new List<GraphTraversal2>();
 
         public GremlinOrOp(params GraphTraversal2[] orTraversals)
         {
             OrTraversals = new List<GraphTraversal2>(orTraversals);
-        }
-
-        public GremlinOrOp(GraphTraversal2 firsTraversal, GraphTraversal2 secondTraversal)
-        {
-            FirstTraversal = firsTraversal;
-            SecondTraversal = secondTraversal;
-            IsInfix = true;
         }
 
         internal override GremlinToSqlContext GetContext()
@@ -35,26 +25,25 @@ namespace GraphView
             }
 
             List<GremlinToSqlContext> orContexts = new List<GremlinToSqlContext>();
-            if (IsInfix)
+            foreach (var orTraversal in this.OrTraversals)
             {
-                FirstTraversal.GetStartOp().InheritedVariableFromParent(inputContext);
-                orContexts.Add(FirstTraversal.GetEndOp().GetContext());
-
-                SecondTraversal.GetStartOp().InheritedVariableFromParent(inputContext);
-                orContexts.Add(SecondTraversal.GetEndOp().GetContext());
-            }
-            else
-            {
-                foreach (var orTraversal in OrTraversals)
-                {
-                    orTraversal.GetStartOp().InheritedVariableFromParent(inputContext);
-                    orContexts.Add(orTraversal.GetEndOp().GetContext());
-                }
+                orTraversal.GetStartOp().InheritedVariableFromParent(inputContext);
+                orContexts.Add(orTraversal.GetEndOp().GetContext());
             }
 
             inputContext.PivotVariable.Or(inputContext, orContexts);
 
             return inputContext;
+        }
+    }
+
+    internal class GremlinOrInfixOp : GremlinOrOp
+    {
+        public GraphTraversal2 FirstTraversal => this.OrTraversals[0];
+        public GraphTraversal2 SecondTraversal => this.OrTraversals[1];
+
+        public GremlinOrInfixOp(params GraphTraversal2[] orTraversals) : base(orTraversals)
+        {
         }
     }
 }

@@ -9,21 +9,11 @@ namespace GraphView
 {
     internal class GremlinAndOp : GremlinTranslationOperator
     {
-        public List<GraphTraversal2> AndTraversals { get; set; }
-        public GraphTraversal2 FirstTraversal { get; set; }
-        public GraphTraversal2 SecondTraversal { get; set; }
-        public bool IsInfix { get; set; }
+        public List<GraphTraversal2> AndTraversals { get; set; } = new List<GraphTraversal2>();
 
         public GremlinAndOp(params GraphTraversal2[] andTraversals)
         {
             AndTraversals = new List<GraphTraversal2>(andTraversals);
-        }
-
-        public GremlinAndOp(GraphTraversal2 firsTraversal, GraphTraversal2 secondTraversal)
-        {
-            FirstTraversal = firsTraversal;
-            SecondTraversal = secondTraversal;
-            IsInfix = true;
         }
 
         internal override GremlinToSqlContext GetContext()
@@ -35,26 +25,24 @@ namespace GraphView
             }
 
             List<GremlinToSqlContext> andContexts = new List<GremlinToSqlContext>();
-            if (IsInfix)
+            foreach (var andTraversal in AndTraversals)
             {
-                FirstTraversal.GetStartOp().InheritedVariableFromParent(inputContext);
-                andContexts.Add(FirstTraversal.GetEndOp().GetContext());
-
-                SecondTraversal.GetStartOp().InheritedVariableFromParent(inputContext);
-                andContexts.Add(SecondTraversal.GetEndOp().GetContext());
+                andTraversal.GetStartOp().InheritedVariableFromParent(inputContext);
+                andContexts.Add(andTraversal.GetEndOp().GetContext());
             }
-            else
-            {
-                foreach (var andTraversal in AndTraversals)
-                {
-                    andTraversal.GetStartOp().InheritedVariableFromParent(inputContext);
-                    andContexts.Add(andTraversal.GetEndOp().GetContext());
-                }
-            }
-
             inputContext.PivotVariable.And(inputContext, andContexts);
 
             return inputContext;
+        }
+    }
+
+    internal class GremlinAndInfixOp : GremlinAndOp
+    {
+        public GraphTraversal2 FirstTraversal => this.AndTraversals[0];
+        public GraphTraversal2 SecondTraversal => this.AndTraversals[1];
+
+        public GremlinAndInfixOp(params GraphTraversal2[] andTraversals) : base(andTraversals)
+        {
         }
     }
 }

@@ -25,6 +25,20 @@ namespace GraphView
             }
         }
 
+        internal static bool IsInjectable(object injection)
+        {
+            if (GremlinUtil.IsList(injection)
+                || GremlinUtil.IsArray(injection)
+                || GremlinUtil.IsNumber(injection)
+                || injection is string
+                || injection is bool) {
+                return true;
+            }
+            else {
+                throw new ArgumentException();
+            }
+        }
+
         internal static string GenerateTableAlias(GremlinVariableType variableType)
         {
             switch (variableType)
@@ -49,19 +63,6 @@ namespace GraphView
                 if (isSameType == false) return GremlinVariableType.Table;
             }
             return contextList.First().PivotVariable.GetVariableType();
-        }
-
-        internal static bool IsTheSameType(List<GremlinVariable> variableList)
-        {
-            if (variableList.Count <= 1) return true;
-            bool isSameType = true;
-            for (var i = 1; i < variableList.Count; i++)
-            {
-                isSameType = variableList[i - 1].GetVariableType() ==
-                             variableList[i].GetVariableType();
-                if (isSameType == false) return false;
-            }
-            return isSameType;
         }
 
         internal static bool IsVertexProperty(string property)
@@ -146,6 +147,45 @@ namespace GraphView
                 Value = SqlUtil.GetValueExpr(Value),
                 MetaProperties = metaPropertiesExpr
             };
+        }
+    }
+
+    internal class GremlinMatchPath
+    {
+        public GremlinFreeVertexVariable SourceVariable { get; set; }
+        public GremlinFreeEdgeVariable EdgeVariable { get; set; }
+        public GremlinFreeVertexVariable SinkVariable { get; set; }
+
+        public GremlinMatchPath(GremlinFreeVertexVariable sourceVariable, GremlinFreeEdgeVariable edgeVariable, GremlinFreeVertexVariable sinkVariable)
+        {
+            SourceVariable = sourceVariable;
+            EdgeVariable = edgeVariable;
+            SinkVariable = sinkVariable;
+        }
+    }
+
+    internal class TraversalRing
+    {
+        public List<GraphTraversal2> Traversals { get; set; }
+        public int CurrentTravsersal { get; set; }
+
+        public TraversalRing(List<GraphTraversal2> traversals)
+        {
+            Traversals = new List<GraphTraversal2>(traversals);
+            CurrentTravsersal = -1;
+        }
+
+        public GraphTraversal2 Next()
+        {
+            if (Traversals.Count == 0)
+            {
+                return null;
+            }
+            else
+            {
+                this.CurrentTravsersal = (this.CurrentTravsersal + 1) % this.Traversals.Count;
+                return this.Traversals[this.CurrentTravsersal];
+            }
         }
     }
 

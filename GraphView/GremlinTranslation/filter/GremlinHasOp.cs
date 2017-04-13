@@ -93,13 +93,13 @@ namespace GraphView
                     Traversal.GetStartOp().InheritedVariableFromParent(inputContext);
                     if (Traversal.GetStartOp() is GremlinParentContextOp)
                     {
-                        if (Traversal.GremlinTranslationOpList.Count > 1)
+                        if (Traversal.TranslationOpList.Count > 1)
                         {
-                            Traversal.InsertGremlinOperator(1, new GremlinValuesOp(PropertyKey));
+                            Traversal.InsertOperator(1, new GremlinValuesOp(PropertyKey));
                         }
                         else
                         {
-                            Traversal.AddGremlinOperator(new GremlinValuesOp(PropertyKey));
+                            Traversal.AddOperator(new GremlinValuesOp(PropertyKey));
                         }
                     }
                     GremlinToSqlContext hasContext = Traversal.GetEndOp().GetContext();

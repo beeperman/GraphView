@@ -26,6 +26,8 @@
 
 #pragma warning disable CS3003 // Type is not CLS-compliant
 
+#define EASY_DEBUG
+
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -35,6 +37,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Reflection;
+using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Azure.Documents;
 using Microsoft.Azure.Documents.Client;
@@ -63,8 +66,6 @@ namespace GraphView
         public string DocDBDatabaseId { get; }
         public string DocDBCollectionId { get; }
 
-        public bool UseReverseEdges { get; set; }
-
         /// <summary>
         /// Whether to generate "id" for edgeObject
         /// </summary>
@@ -73,9 +74,10 @@ namespace GraphView
         /// <summary>
         /// Spill if how many edges are in a edge-document?
         /// </summary>
-        public int EdgeSpillThreshold { get; private set; } = 0;
+        public int EdgeSpillThreshold { get; private set; }
 
         internal VertexObjectCache VertexCache { get; }
+        internal Bulk Bulk { get; }
 
         internal string Identifier { get; }
 
@@ -86,6 +88,13 @@ namespace GraphView
         private DocumentClient DocDBClient { get; }  // Don't expose DocDBClient to outside!
 
         internal CollectionType CollectionType { get; private set; }
+
+        /// <summary>
+        /// Warning: This is actually a collection meta property.
+        /// Once this flag is set to false and data modifications are applied on a collection, 
+        /// then it should never be set to true again.
+        /// </summary>
+        public bool UseReverseEdges { get; }
 
         /// <summary>
         /// Initializes a new connection to DocDB.
@@ -100,6 +109,7 @@ namespace GraphView
             string docDBAuthorizationKey,
             string docDBDatabaseID,
             string docDBCollectionID,
+            bool useReverseEdges = true,
             CollectionType collectionType = CollectionType.UNDEFINED,
             string preferredLocation = null)
         {
@@ -114,6 +124,11 @@ namespace GraphView
             this.DocDBPrimaryKey = docDBAuthorizationKey;
             this.DocDBDatabaseId = docDBDatabaseID;
             this.DocDBCollectionId = docDBCollectionID;
+            this.UseReverseEdges = useReverseEdges;
+
+            this.Identifier = $"{docDBEndpointUrl}\0{docDBDatabaseID}\0{docDBCollectionID}";
+            this.VertexCache = new VertexObjectCache(this);
+            this.Bulk = new Bulk(this);
 
             ConnectionPolicy connectionPolicy = new ConnectionPolicy {
                 ConnectionMode = ConnectionMode.Direct,
@@ -127,7 +142,6 @@ namespace GraphView
                                                   this.DocDBPrimaryKey,
                                                   connectionPolicy);
             this.DocDBClient.OpenAsync().Wait();
-
 
             //
             // Check whether it is a partition collection (if exists)
@@ -177,11 +191,6 @@ namespace GraphView
                 }
             }
 
-            this.Identifier = $"{docDBEndpointUrl}\0{docDBDatabaseID}\0{docDBCollectionID}";
-            this.VertexCache = VertexObjectCache.FromConnection(this);
-
-            this.UseReverseEdges = true;
-            
 
             // Retrieve metadata from DocDB
             JObject metaObject = RetrieveDocumentById("metadata");
@@ -234,7 +243,7 @@ namespace GraphView
         ///   - collectionType = PARTITIONED: the newly created collection is PARTITIONED
         ///   - collectionType = UNDEFINED: an exception is thrown!
         /// </summary>
-        public void ResetCollection(CollectionType collectionType = CollectionType.STANDARD, int? edgeSpillThreshold = null)
+        public void ResetCollection(CollectionType collectionType = CollectionType.STANDARD, int? edgeSpillThreshold = 1)
         {
             EnsureDatabaseExist();
 
@@ -286,6 +295,19 @@ namespace GraphView
             };
             CreateDocumentAsync(metaObject).Wait();
 
+            //
+            // Upload stored procedure `BulkOperation`
+            //
+            StoredProcedure storedProcedure = new StoredProcedure() {
+                Id = "BulkOperation",
+                Body = GraphView.Properties.Resources.BulkOperation,
+            };
+            this.DocDBClient.CreateStoredProcedureAsync(
+                this._docDBCollectionUri,
+                storedProcedure, null
+            ).Wait();
+
+
             Trace.WriteLine($"[ResetCollection] Database/Collection {this.DocDBDatabaseId}/{this.DocDBCollectionId} has been reset.");
         }
 
@@ -305,7 +327,7 @@ namespace GraphView
             this.DocDBClient.CreateDocumentCollectionAsync(
                 this._docDBDatabaseUri,
                 collection,
-                new RequestOptions {OfferType = "S3"}
+                new RequestOptions {OfferThroughput = 10000}
             ).Wait();
         }
 
@@ -328,6 +350,13 @@ namespace GraphView
 
             Document createdDocument = await this.DocDBClient.CreateDocumentAsync(this._docDBCollectionUri, docObject);
             Debug.Assert((string)docObject[KW_DOC_ID] == createdDocument.Id);
+
+            //
+            // Save the created document's etag
+            //
+            docObject[KW_DOC_ETAG] = createdDocument.ETag;
+            this.VertexCache.UpdateCurrentEtag(createdDocument);
+
             return createdDocument.Id;
         }
 
@@ -353,24 +382,39 @@ namespace GraphView
 
         internal async Task ReplaceOrDeleteDocumentAsync(string docId, JObject docObject, string partition)
         {
-            RequestOptions option = null;
-            if (this.CollectionType == CollectionType.PARTITIONED) {
-                option = new RequestOptions {
-                    PartitionKey = new PartitionKey(partition)
-                };
+            if (docObject != null) {
+                Debug.Assert((string)docObject[KW_DOC_ID] == docId);
             }
+
+            RequestOptions option = new RequestOptions();
+            if (this.CollectionType == CollectionType.PARTITIONED)
+            {
+                option.PartitionKey = new PartitionKey(partition);
+            }
+
+            option.AccessCondition = new AccessCondition
+            {
+                Type = AccessConditionType.IfMatch,
+                Condition = this.VertexCache.GetCurrentEtag(docId),
+            };
 
             Uri documentUri = UriFactory.CreateDocumentUri(this.DocDBDatabaseId, this.DocDBCollectionId, docId);
             if (docObject == null) {
                 this.DocDBClient.DeleteDocumentAsync(documentUri, option).Wait();
+
+                // Remove the document's etag from saved
+                this.VertexCache.RemoveEtag(docId);
             }
             else {
                 Debug.Assert(docObject[KW_DOC_ID] is JValue);
                 Debug.Assert((string)docObject[KW_DOC_ID] == docId, "The replaced document should match ID in the parameter");
                 Debug.Assert(partition != null && partition == (string)docObject[KW_DOC_PARTITION]);
 
-                await this.DocDBClient.ReplaceDocumentAsync(documentUri, docObject, option);
-                docObject[KW_DOC_ID] = docId;
+                Document document = await this.DocDBClient.ReplaceDocumentAsync(documentUri, docObject, option);
+
+                // Update the document's etag
+                docObject[KW_DOC_ETAG] = document.ETag;
+                this.VertexCache.UpdateCurrentEtag(document);
             }
         }
 
@@ -400,42 +444,32 @@ namespace GraphView
         {
             Debug.Assert(!string.IsNullOrEmpty(docId), "'docId' should not be null or empty");
 
-            try {
-                //
-                // It seems that DocDB won't return an empty result, but throw an exception instead!
-                // 
-                string script = $"SELECT * FROM Doc WHERE Doc.{KW_DOC_ID} = '{docId}'";
-                FeedOptions queryOptions = new FeedOptions {
-                    MaxItemCount = -1,  // dynamic paging
-                };
-                if (this.CollectionType == CollectionType.PARTITIONED) {
-                    queryOptions.EnableCrossPartitionQuery = true;
-                }
+            string script = $"SELECT * FROM Doc WHERE Doc.{KW_DOC_ID} = '{docId}'";
+            JObject result = ExecuteQueryUnique(script);
 
-                List<dynamic> result = this.DocDBClient.CreateDocumentQuery(
-                    UriFactory.CreateDocumentCollectionUri(this.DocDBDatabaseId, this.DocDBCollectionId),
-                    script,
-                    queryOptions
-                ).ToList();
+            //
+            // Save etag of the fetched document
+            // No override!
+            //
+            if (result != null) {
+                this.VertexCache.SaveCurrentEtagNoOverride(result);
+            }
 
-                Debug.Assert(result.Count <= 1, $"BUG: Found multiple documents sharing the same docId: {docId}");
-                return (result.Count == 0) ? null : (JObject)result[0];
-            }
-            catch (AggregateException aggex)
-                when ((aggex.InnerException as DocumentClientException)?.Error.Code == "NotFound") {  // HACK
-                return null;
-            }
+            return result;
         }
 
 
         internal IQueryable<dynamic> ExecuteQuery(string queryScript, FeedOptions queryOptions = null)
         {
-            if (queryOptions == null) {
-                queryOptions = new FeedOptions {
+            if (queryOptions == null)
+            {
+                queryOptions = new FeedOptions
+                {
                     MaxItemCount = -1,
                     EnableScanInQuery = true,
                 };
-                if (this.CollectionType == CollectionType.PARTITIONED) {
+                if (this.CollectionType == CollectionType.PARTITIONED)
+                {
                     queryOptions.EnableCrossPartitionQuery = true;
                 }
             }
@@ -448,23 +482,52 @@ namespace GraphView
 
         internal JObject ExecuteQueryUnique(string queryScript, FeedOptions queryOptions = null)
         {
-            List<dynamic> result = ExecuteQuery(queryScript, queryOptions).ToList();
+            try
+            {
+                //
+                // It seems that DocDB won't return an empty result, but throw an exception instead!
+                // 
+                List<dynamic> result = ExecuteQuery(queryScript, queryOptions).ToList();
 
-            Debug.Assert(result.Count <= 1, "A unique query should have at most 1 result");
-            return (result.Count == 0)
-                       ? null
-                       : result[0];
+                Debug.Assert(result.Count <= 1, "A unique query should have at most 1 result");
+                return (result.Count == 0)
+                           ? null
+                           : (JObject)result[0];
 
+            }
+            catch (AggregateException aggex) when ((aggex.InnerException as DocumentClientException)?.Error.Code == "NotFound")
+            {
+                return null;
+            }
         }
 
-       
+        internal string ExecuteBulkOperation(params dynamic[] parameters)
+        {
+            string responseBody = this.DocDBClient.ExecuteStoredProcedureAsync<string>(
+                UriFactory.CreateStoredProcedureUri(this.DocDBDatabaseId, this.DocDBCollectionId, "BulkOperation"),
+                parameters
+                ).Result.Response;
+            if (string.IsNullOrEmpty(responseBody)) {
+                throw new Exception("BUG: BulkOperation succeeds but response is null or empty!");
+            }
+            return responseBody;
+        }
+
+
+#if EASY_DEBUG
+        private static long __currId = 0;
+#endif       
         internal static string GenerateDocumentId()
         {
+#if EASY_DEBUG
+            return "ID_" + (++__currId).ToString();
+#else
             // TODO: Implement a stronger Id generation
             Guid guid = Guid.NewGuid();
             return guid.ToString("D");
+#endif
         }
-        
+
     }
 
 }

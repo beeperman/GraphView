@@ -6,15 +6,8 @@ using System.Threading.Tasks;
 
 namespace GraphView
 {
-    internal class GremlinCountOp: GremlinTranslationOperator
+    internal class GremlinCountGlobalOp: GremlinTranslationOperator
     {
-        public GremlinKeyword.Scope Scope { get; set; }
-
-        public GremlinCountOp(GremlinKeyword.Scope scope)
-        {
-            Scope = scope;
-        }
-
         internal override GremlinToSqlContext GetContext()
         {
             GremlinToSqlContext inputContext = GetInputContext();
@@ -23,14 +16,23 @@ namespace GraphView
                 throw new QueryCompilationException("The PivotVariable can't be null.");
             }
 
-            if (Scope == GremlinKeyword.Scope.Global)
+            inputContext.PivotVariable.CountGlobal(inputContext);
+
+            return inputContext;
+        }
+    }
+
+    internal class GremlinCountLocalOp : GremlinTranslationOperator
+    {
+        internal override GremlinToSqlContext GetContext()
+        {
+            GremlinToSqlContext inputContext = GetInputContext();
+            if (inputContext.PivotVariable == null)
             {
-                inputContext.PivotVariable.Count(inputContext);
+                throw new QueryCompilationException("The PivotVariable can't be null.");
             }
-            else
-            {
-                inputContext.PivotVariable.CountLocal(inputContext);
-            }
+
+            inputContext.PivotVariable.CountLocal(inputContext);
 
             return inputContext;
         }

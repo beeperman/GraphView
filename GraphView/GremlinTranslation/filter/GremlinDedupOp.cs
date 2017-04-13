@@ -11,12 +11,18 @@ namespace GraphView
     {
         public List<string> DedupLabels { get; set; }
         public GraphTraversal2 ByTraversal { get; set; }
-        public GremlinKeyword.Scope Scope { get; set; }
 
-        public GremlinDedupOp(GremlinKeyword.Scope scope, params string[] dedupLabels)
+        public GremlinDedupOp(params string[] dedupLabels)
         {
-            DedupLabels = new List<string>(dedupLabels);
-            Scope = scope;
+            this.DedupLabels = new List<string>(dedupLabels);
+            this.ByTraversal = GraphTraversal2.__();
+        }
+    }
+
+    internal class GremlinDedupGlobalOp : GremlinDedupOp
+    {
+        public GremlinDedupGlobalOp(params string[] dedupLabels): base(dedupLabels)
+        {
         }
 
         internal override GremlinToSqlContext GetContext()
@@ -27,25 +33,36 @@ namespace GraphView
                 throw new QueryCompilationException("The PivotVariable can't be null.");
             }
 
-            GremlinToSqlContext dedupContext = null;
-            if (ByTraversal != null)
-            {
-                ByTraversal.GetStartOp().InheritedVariableFromParent(inputContext);
-                dedupContext = ByTraversal.GetEndOp().GetContext();
-            }
-
-            // Dedup(Local, "x", "y"), the dedupLabels should be ignored
-            if (Scope == GremlinKeyword.Scope.Local) DedupLabels.Clear();
-
-            inputContext.PivotVariable.Dedup(inputContext, DedupLabels, dedupContext, Scope);
+            inputContext.PivotVariable.DedupGlobal(inputContext, this.DedupLabels, this.ByTraversal);
 
             return inputContext;
         }
 
         public override void ModulateBy(GraphTraversal2 traversal)
         {
-            if (Scope == GremlinKeyword.Scope.Local) throw new SyntaxErrorException("Dedup(Local) can't be modulated by by()");
-            ByTraversal = traversal;
+            this.ByTraversal = traversal;
+        }
+    }
+
+    internal class GremlinDedupLocalOp : GremlinDedupOp
+    {
+        public GremlinDedupLocalOp(params string[] dedupLabels): base(dedupLabels)
+        {
+        }
+
+        internal override GremlinToSqlContext GetContext()
+        {
+            GremlinToSqlContext inputContext = GetInputContext();
+            if (inputContext.PivotVariable == null)
+            {
+                throw new QueryCompilationException("The PivotVariable can't be null.");
+            }
+
+            this.ByTraversal.GetStartOp().InheritedVariableFromParent(inputContext);
+            GremlinToSqlContext dedupContext = this.ByTraversal.GetEndOp().GetContext();
+            inputContext.PivotVariable.DedupLocal(inputContext, dedupContext);
+
+            return inputContext;
         }
     }
 }

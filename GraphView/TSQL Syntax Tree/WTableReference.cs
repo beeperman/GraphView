@@ -367,6 +367,8 @@ namespace GraphView
 
     public partial class WOptionalTableReference : WSchemaObjectFunctionTableReference
     {
+        public bool HasAggregateFunctionAsChildren { get; set; }
+
         internal void Split(out WSelectQueryBlock contextSelect, out WSelectQueryBlock optionalSelectQuery)
         {
             WScalarSubquery optionalInput = Parameters[0] as WScalarSubquery;
@@ -387,13 +389,6 @@ namespace GraphView
             {
                 throw new SyntaxErrorException("The input of an optional table reference must be a UNION ALL binary query and the two sub-queries must be a select query block.");
             }
-        }
-
-        internal bool HasAggregateFunctionInTheOptionalSelectQuery(WSelectQueryBlock optionalSelectQuery)
-        {
-            AggregateFunctionCountVisitor aggregateCountVisitor = new AggregateFunctionCountVisitor();
-
-            return aggregateCountVisitor.Invoke(optionalSelectQuery) > 0;
         }
     }
 
@@ -421,6 +416,8 @@ namespace GraphView
     public partial class WBoundBothNodeTableReference : WSchemaObjectFunctionTableReference {}
 
     public partial class WBoundOutNodeTableReference : WSchemaObjectFunctionTableReference {}
+
+    public partial class WBoundNodeTableReference : WSchemaObjectFunctionTableReference { }
 
     public partial class WPropertiesTableReference : WSchemaObjectFunctionTableReference {}
 
@@ -491,7 +488,7 @@ namespace GraphView
 
     public partial class WOrderTableReference : WSchemaObjectFunctionTableReference
     {
-        public List<Tuple<WScalarExpression, IComparer>> OrderParameters { get; set; }
+        public List<Tuple<WScalarExpression, IComparer>> OrderParameters { get; set; } = new List<Tuple<WScalarExpression, IComparer>>();
     }
 
     public partial class WOrderLocalTableReference : WOrderTableReference {}
@@ -670,7 +667,7 @@ namespace GraphView
 
     public partial class WDropNodeTableReference : WSchemaObjectFunctionTableReference {}
 
-    public partial class WDropEdgeTableReference : WSchemaObjectFunctionTableReference {}
+    //public partial class WDropEdgeTableReference : WSchemaObjectFunctionTableReference {}
 
     public partial class WDropTableReference : WSchemaObjectFunctionTableReference { }
 
@@ -682,7 +679,7 @@ namespace GraphView
 
     public partial class WUpdatePropertiesTableReference : WSchemaObjectFunctionTableReference { }
 
-    public partial class WUpdateEdgePropertiesTableReference : WSchemaObjectFunctionTableReference {}
+    //public partial class WUpdateEdgePropertiesTableReference : WSchemaObjectFunctionTableReference {}
 
     public partial class WStoreTableReference : WSchemaObjectFunctionTableReference {}
 

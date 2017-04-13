@@ -19,15 +19,21 @@ namespace GraphView
 
         internal override void Populate(string property)
         {
-            if (ProjectedProperties.Contains(property)) return;
             base.Populate(property);
             InputVariable.Populate(property);
+        }
+
+        internal override List<GremlinVariable> FetchAllVars()
+        {
+            List<GremlinVariable> variableList = new List<GremlinVariable>() { this };
+            variableList.AddRange(InputVariable.FetchAllVars());
+            return variableList;
         }
 
         public override WTableReference ToTableReference()
         {
             List<WScalarExpression> parameters = new List<WScalarExpression>();
-            parameters.Add(InputVariable.DefaultProjection().ToScalarExpression());
+            parameters.Add(InputVariable.GetDefaultProjection().ToScalarExpression());
             parameters.Add(SqlUtil.GetValueExpr(Column == GremlinKeyword.Column.Keys ? "Keys" : "Values"));
             var tableRef = SqlUtil.GetFunctionTableReference(GremlinKeyword.func.SelectColumn, parameters, GetVariableName());
             return SqlUtil.GetCrossApplyTableReference(tableRef);
@@ -38,10 +44,10 @@ namespace GraphView
     {
         public GremlinOrderLocalInitVariable()
         {
-            variableName = GremlinKeyword.Compose1TableDefaultName;
+            VariableName = GremlinKeyword.Compose1TableDefaultName;
         }
 
-        internal override GremlinVariableProperty DefaultProjection()
+        internal override GremlinVariableProperty GetDefaultProjection()
         {
             return new GremlinVariableProperty(this, GremlinKeyword.TableDefaultColumnName);
         }

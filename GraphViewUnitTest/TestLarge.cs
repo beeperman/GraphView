@@ -23,7 +23,7 @@ namespace GraphViewUnitTest
 #endif
 
         [MethodImpl(MethodImplOptions.NoInlining)]
-        private static GraphViewConnection CreateConnection(string tips = null, int? edgeSpillThreshold = null)
+        private static GraphViewConnection CreateConnection(string tips = null, int? edgeSpillThreshold = 1)
         {
             StackFrame frame = new StackFrame(1);
             if (!string.IsNullOrEmpty(tips)) {
@@ -33,7 +33,7 @@ namespace GraphViewUnitTest
 
             GraphViewConnection connection = new GraphViewConnection(DOCDB_URL, DOCDB_AUTHKEY, DOCDB_DATABASE, collectionName);
             connection.EnsureDatabaseExist();
-            connection.ResetCollection(CollectionType.PARTITIONED, edgeSpillThreshold);
+            connection.ResetCollection(CollectionType.STANDARD, edgeSpillThreshold);
             return connection;
         }
 
@@ -138,13 +138,13 @@ namespace GraphViewUnitTest
         public void TestAddAndDropEdges_DropAll_Small()
         {
             const int EDGE_COUNT = 10;
-            GraphViewConnection connection = CreateConnection($"AddAndDropEdges_DropAll_Small E={EDGE_COUNT}");
+            GraphViewConnection connection = CreateConnection($"E={EDGE_COUNT}");
             GraphViewCommand graph = new GraphViewCommand(connection);
 
             graph.g().AddV("SourceV").Next();
             graph.g().AddV("SinkV").Next();
             for (int i = 0; i < EDGE_COUNT; i++) {
-                graph.g().V().HasLabel("SourceV").AddE().To(graph.g().V().HasLabel("SinkV")).Next();
+                graph.g().V().HasLabel("SourceV").AddE("dummyLabel").To(graph.g().V().HasLabel("SinkV")).Next();
             }
             graph.g().V().OutE().Drop().Next();
         }
@@ -153,7 +153,7 @@ namespace GraphViewUnitTest
         public void TestAddAndDropEdges_DropSome_Small()
         {
             const int EDGE_COUNT = 20;
-            GraphViewConnection connection = CreateConnection($"AddAndDropEdges_DropSome_Small E={EDGE_COUNT}");
+            GraphViewConnection connection = CreateConnection($"E={EDGE_COUNT}");
             GraphViewCommand graph = new GraphViewCommand(connection);
 
             graph.g().AddV("SourceV").Next();
@@ -168,7 +168,7 @@ namespace GraphViewUnitTest
         public void TestAddDropEdges_DropAll_Large()
         {
             const int EDGE_COUNT = 10;
-            GraphViewConnection connection = CreateConnection($"AddAndDropEdges_DropAll_Large E={EDGE_COUNT}");
+            GraphViewConnection connection = CreateConnection($"E={EDGE_COUNT}");
             GraphViewCommand graph = new GraphViewCommand(connection);
 
             graph.g().AddV("SourceV").Next();
@@ -184,9 +184,9 @@ namespace GraphViewUnitTest
         public void TestAddDropEdges_DropSome_Large()
         {
             const int EDGE_COUNT = 30;
-            GraphViewConnection connection = CreateConnection($"AddAndDropEdges_DropSome_Large E={EDGE_COUNT}");
+            GraphViewConnection connection = CreateConnection($"E={EDGE_COUNT}", 4);
             GraphViewCommand graph = new GraphViewCommand(connection);
-            string suffix = new string('_', 1024 * 900);
+            string suffix = new string('_', 10);
 
             graph.g().AddV("SourceV").Next();
             graph.g().AddV("SinkV").Next();
@@ -200,7 +200,7 @@ namespace GraphViewUnitTest
         public void TestDropNodes_Small()
         {
             const int EDGE_COUNT = 5;
-            GraphViewConnection connection = CreateConnection($"TestDropNodes_Small(A->B->C, A->C) E={EDGE_COUNT}");
+            GraphViewConnection connection = CreateConnection($"(A->B->C, A->C) E={EDGE_COUNT}");
             GraphViewCommand graph = new GraphViewCommand(connection);
             string suffix = string.Empty;
 
@@ -220,9 +220,9 @@ namespace GraphViewUnitTest
         public void TestDropNodes_Large()
         {
             const int EDGE_COUNT = 10;
-            GraphViewConnection connection = CreateConnection($"{MethodBase.GetCurrentMethod().Name}(A->B->C, A->C) E={EDGE_COUNT}");
+            GraphViewConnection connection = CreateConnection($"(A->B->C, A->C) E={EDGE_COUNT}");
             GraphViewCommand graph = new GraphViewCommand(connection);
-            string suffix = new string('_', 1024 * 900);
+            string suffix = new string('_', 1024);
 
             graph.g().AddV("A").Next();
             graph.g().AddV("B").Next();
@@ -251,7 +251,7 @@ namespace GraphViewUnitTest
 
             for (int i = 0; i < EDGE_COUNT; i++) {
                 if (i % 2 == 1) {
-                    graph.g().V().OutE().HasLabel($"E{i}").Property($"E{i} Property", null).Next();
+                    graph.g().V().OutE().HasLabel($"E{i}").Properties($"E{i} Property").Drop().Next();
                     graph.g().V().OutE().HasLabel($"E{i}").Property($"E{i} Another Property", "Dummy!").Next();
                 }
             }
@@ -261,9 +261,9 @@ namespace GraphViewUnitTest
         public void TestChangeEdgeProperties_Large()
         {
             const int EDGE_COUNT = 10;
-            GraphViewConnection connection = CreateConnection($"{MethodBase.GetCurrentMethod().Name} E={EDGE_COUNT}");
+            GraphViewConnection connection = CreateConnection($"{MethodBase.GetCurrentMethod().Name} E={EDGE_COUNT}", 1);
             GraphViewCommand graph = new GraphViewCommand(connection);
-            string suffix = new string('_', 1024 * 900);
+            string suffix = new string('_', 1024);
 
             graph.g().AddV("SourceV").Next();
             graph.g().AddV("SinkV").Next();
@@ -273,7 +273,7 @@ namespace GraphViewUnitTest
 
             for (int i = 0; i < EDGE_COUNT; i++) {
                 if (i % 2 == 1) {
-                    graph.g().V().OutE().HasLabel($"E{i}{suffix}").Property($"E{i} Property", null).Next();
+                    graph.g().V().OutE().HasLabel($"E{i}{suffix}").Properties($"E{i} Property").Drop().Next();
                     graph.g().V().OutE().HasLabel($"E{i}{suffix}").Property($"E{i} Another Property", "Dummy!").Next();
                 }
             }
@@ -283,11 +283,11 @@ namespace GraphViewUnitTest
         [TestMethod]
         public void TestChangeEdgeProperties_Large2Larger()
         {
-            const int EDGE_COUNT = 4;
-            GraphViewConnection connection = CreateConnection($"E={EDGE_COUNT}");
+            const int EDGE_COUNT = 20;
+            GraphViewConnection connection = CreateConnection($"E={EDGE_COUNT}", 5);
             GraphViewCommand graph = new GraphViewCommand(connection);
-            string suffix = new string('_', 1024 * 900);  // 900 KB
-            string suffix2 = new string('_', 1024 * 1900);  // nearly 2MB
+            string suffix = new string('_', 1024);  // 1 KB
+            string suffix2 = new string('_', 10240);  // 10KB
 
             graph.g().AddV("SourceV").Next();
             graph.g().AddV("SinkV").Next();
@@ -297,7 +297,7 @@ namespace GraphViewUnitTest
 
             // Drop all added properties
             for (int i = 0; i < EDGE_COUNT; i++) {
-                graph.g().V().OutE().HasLabel($"E{i}{suffix}").Property($"E{i} Property", null).Next();
+                graph.g().V().OutE().HasLabel($"E{i}{suffix}").Properties($"E{i} Property").Drop().Next();
             }
 
             // Add new property
@@ -327,7 +327,7 @@ namespace GraphViewUnitTest
             GraphViewConnection connection = CreateConnection($"Threshold={THRESHOLD},E={EDGE_COUNT}", THRESHOLD);
             GraphViewCommand graph = new GraphViewCommand(connection);
 
-            Console.WriteLine($"EdgeSpillThreashold: {connection.EdgeSpillThreshold}");
+            Console.WriteLine($"EdgeSpillThreshold: {connection.EdgeSpillThreshold}");
             graph.g().AddV("SourceV").Next();
             graph.g().AddV("SinkV").Next();
             for (int i = 0; i < EDGE_COUNT; i++) {
@@ -344,7 +344,7 @@ namespace GraphViewUnitTest
             string prefix = new string('_', 1024 * 600);
             GraphViewConnection connection = CreateConnection($"Threshold={THRESHOLD},E={EDGE_COUNT}", THRESHOLD);
             GraphViewCommand graph = new GraphViewCommand(connection);
-            Console.WriteLine($"EdgeSpillThreashold: {connection.EdgeSpillThreshold}");
+            Console.WriteLine($"EdgeSpillThreshold: {connection.EdgeSpillThreshold}");
 
             graph.g().AddV("SourceV").Next();
             graph.g().AddV("SinkV").Next();

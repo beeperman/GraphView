@@ -218,7 +218,102 @@ namespace GraphView
                     continue;
                 }
 
+                StringField strf = propertyObject as StringField;
+                if (strf != null)
+                {
+                    RawRecord r = new RawRecord();
+                    r.Append(new StringField(strf.Value, strf.JsonDataType));
+                    results.Add(r);
+                    continue;
+                }
+
                 Debug.Assert(false, "Should not get here.");
+            }
+
+            return results;
+        }
+    }
+
+    internal class LabelOperator : TableValuedFunction
+    {
+        private readonly int _targetIndex;
+
+        public LabelOperator(GraphViewExecutionOperator inputOp, int targetIndex)
+            : base(inputOp)
+        {
+            this._targetIndex = targetIndex;
+        }
+
+        internal override List<RawRecord> CrossApply(RawRecord record)
+        {
+            List<RawRecord> results = new List<RawRecord>();
+
+            FieldObject target = record[this._targetIndex];
+            if (target != null) {
+                VertexField vertex = target as VertexField;
+                if (vertex != null) {
+                    RawRecord r = new RawRecord();
+                    r.Append(new StringField(vertex.VertexMetaProperties[KW_VERTEX_LABEL].ToValue));
+                    results.Add(r);
+                }
+
+                VertexSinglePropertyField vertexSingleProperty = target as VertexSinglePropertyField;
+                if (vertexSingleProperty != null) {
+                    RawRecord r = new RawRecord();
+                    r.Append(new StringField(vertexSingleProperty.PropertyName));
+                    results.Add(r);
+                }
+
+                EdgeField edge = target as EdgeField;
+                if (edge != null) {
+                    RawRecord r = new RawRecord();
+                    r.Append(new StringField(edge.Label));
+                    results.Add(r);
+                }
+
+            }
+
+            return results;
+        }
+    }
+
+    internal class IdOperator : TableValuedFunction
+    {
+        private readonly int _targetIndex;
+
+        public IdOperator(GraphViewExecutionOperator inputOp, int targetIndex)
+            : base(inputOp)
+        {
+            this._targetIndex = targetIndex;
+        }
+
+        internal override List<RawRecord> CrossApply(RawRecord record)
+        {
+            List<RawRecord> results = new List<RawRecord>();
+
+            FieldObject target = record[this._targetIndex];
+            if (target != null) {
+                VertexField vertex = target as VertexField;
+                if (vertex != null) {
+                    RawRecord r = new RawRecord();
+                    r.Append(new StringField(vertex.VertexMetaProperties[KW_DOC_ID].ToValue));
+                    results.Add(r);
+                }
+
+                VertexSinglePropertyField vertexSingleProperty = target as VertexSinglePropertyField;
+                if (vertexSingleProperty != null) {
+                    RawRecord r = new RawRecord();
+                    r.Append(new StringField(vertexSingleProperty.PropertyId));
+                    results.Add(r);
+                }
+
+                EdgeField edge = target as EdgeField;
+                if (edge != null) {
+                    RawRecord r = new RawRecord();
+                    r.Append(new StringField(edge.EdgeId));
+                    results.Add(r);
+                }
+
             }
 
             return results;
@@ -252,8 +347,8 @@ namespace GraphView
                 {
                     string propertyName = property.PropertyName;
                     Debug.Assert(!VertexField.IsVertexMetaProperty(propertyName));
-                    Debug.Assert(!propertyName.Equals("_edge"));
-                    Debug.Assert(!propertyName.Equals("_reverse_edge"));
+                    Debug.Assert(!propertyName.Equals(KW_VERTEX_EDGE));
+                    Debug.Assert(!propertyName.Equals(KW_VERTEX_REV_EDGE));
 
                     switch (propertyName)
                     {
@@ -290,7 +385,7 @@ namespace GraphView
                         // Reserved properties for meta-data
                         case KW_EDGE_LABEL:
                         case KW_EDGE_ID:
-                        case KW_EDGE_OFFSET:
+                        //case KW_EDGE_OFFSET:
                         case KW_EDGE_SRCV:
                         case KW_EDGE_SINKV:
                         case KW_EDGE_SRCV_LABEL:
@@ -389,8 +484,8 @@ namespace GraphView
                     {
                         string propertyName = property.PropertyName;
                         Debug.Assert(!VertexField.IsVertexMetaProperty(propertyName));
-                        Debug.Assert(!propertyName.Equals("_edge"));
-                        Debug.Assert(!propertyName.Equals("_reverse_edge"));
+                        Debug.Assert(!propertyName.Equals(KW_VERTEX_EDGE));
+                        Debug.Assert(!propertyName.Equals(KW_VERTEX_REV_EDGE));
 
                         switch (propertyName)
                         {
@@ -448,8 +543,8 @@ namespace GraphView
                         switch (propertyName)
                         {
                             // Reserved properties for meta-data
-                            case GraphViewKeywords.KW_EDGE_ID:
-                            case KW_EDGE_OFFSET:
+                            case KW_EDGE_ID:
+                            //case KW_EDGE_OFFSET:
                             case KW_EDGE_SRCV:
                             case KW_EDGE_SINKV:
                             case KW_EDGE_SRCV_LABEL:
@@ -557,8 +652,8 @@ namespace GraphView
                     {
                         string propertyName = property.PropertyName;
                         Debug.Assert(!VertexField.IsVertexMetaProperty(propertyName));
-                        Debug.Assert(!propertyName.Equals("_edge"));
-                        Debug.Assert(!propertyName.Equals("_reverse_edge"));
+                        Debug.Assert(!propertyName.Equals(KW_VERTEX_EDGE));
+                        Debug.Assert(!propertyName.Equals(KW_VERTEX_REV_EDGE));
 
                         switch (propertyName)
                         {
@@ -609,8 +704,8 @@ namespace GraphView
                         switch (propertyName)
                         {
                             // Reserved properties for meta-data
-                            case GraphViewKeywords.KW_EDGE_ID:
-                            case KW_EDGE_OFFSET:
+                            case KW_EDGE_ID:
+                            //case KW_EDGE_OFFSET:
                             case KW_EDGE_SRCV:
                             case KW_EDGE_SINKV:
                             case KW_EDGE_SRCV_LABEL:
@@ -679,8 +774,8 @@ namespace GraphView
                 {
                     string propertyName = property.PropertyName;
                     Debug.Assert(!VertexField.IsVertexMetaProperty(propertyName));
-                    Debug.Assert(!propertyName.Equals("_edge"));
-                    Debug.Assert(!propertyName.Equals("_reverse_edge"));
+                    Debug.Assert(!propertyName.Equals(KW_VERTEX_EDGE));
+                    Debug.Assert(!propertyName.Equals(KW_VERTEX_REV_EDGE));
 
                     switch (propertyName)
                     {
@@ -715,7 +810,7 @@ namespace GraphView
                         // Reserved properties for meta-data
                         case KW_EDGE_ID:
                         case KW_EDGE_LABEL:
-                        case KW_EDGE_OFFSET:
+                        //case KW_EDGE_OFFSET:
                         case KW_EDGE_SRCV:
                         case KW_EDGE_SINKV:
                         case KW_EDGE_SRCV_LABEL:
@@ -904,6 +999,16 @@ namespace GraphView
                     else
                     {
                         FieldObject pathStep = GetStepProjectionResult(step, ref activeByFuncIndex);
+
+                        Compose1Field compose1PathStep = pathStep as Compose1Field;
+                        Debug.Assert(compose1PathStep != null, "compose1PathStep != null");
+                        //
+                        // g.V().optional(__.count().V()).path()
+                        //
+                        if (compose1PathStep[compose1PathStep.DefaultProjectionKey] == null) {
+                            continue;
+                        }
+
                         PathStepField pathStepField = new PathStepField(pathStep);
                         foreach (string label in stepLabels) {
                             pathStepField.AddLabel(label);
@@ -1018,19 +1123,16 @@ namespace GraphView
     internal class UnfoldOperator : TableValuedFunction
     {
         private ScalarFunction getUnfoldTargetFunc;
-        private List<string> unfoldCompose1Columns;
-        private readonly string tableDefaultColumnName;
+        private List<string> populateColumns;
 
         internal UnfoldOperator(
             GraphViewExecutionOperator inputOp,
             ScalarFunction getUnfoldTargetFunc,
-            List<string> unfoldCompose1Columns,
-            string tableDefaultColumnName)
+            List<string> populateColumns)
             : base(inputOp)
         {
             this.getUnfoldTargetFunc = getUnfoldTargetFunc;
-            this.unfoldCompose1Columns = unfoldCompose1Columns;
-            this.tableDefaultColumnName = tableDefaultColumnName;
+            this.populateColumns = populateColumns;
         }
 
         internal override List<RawRecord> CrossApply(RawRecord record)
@@ -1052,7 +1154,7 @@ namespace GraphView
                     //
                     // Extract only needed columns from Compose1Field
                     //
-                    foreach (string unfoldColumn in unfoldCompose1Columns) {
+                    foreach (string unfoldColumn in populateColumns) {
                         flatRecord.Append(compose1StepField[unfoldColumn]);
                     }
 
@@ -1072,7 +1174,7 @@ namespace GraphView
                     //
                     // Extract only needed columns from Compose1Field
                     //
-                    foreach (string unfoldColumn in unfoldCompose1Columns) {
+                    foreach (string unfoldColumn in populateColumns) {
                         flatRecord.Append(compose1ObjField[unfoldColumn]);
                     }
 
@@ -1086,8 +1188,8 @@ namespace GraphView
                 {
                     RawRecord entryRecord = new RawRecord();
 
-                    foreach (string columnName in this.unfoldCompose1Columns) {
-                        entryRecord.Append(columnName.Equals(GremlinKeyword.TableDefaultColumnName)
+                    foreach (string columnName in this.populateColumns) {
+                        entryRecord.Append(columnName.Equals(GraphViewKeywords.KW_TABLE_DEFAULT_COLUMN_NAME)
                             ? entry
                             : (FieldObject) null);
                     }
@@ -1095,56 +1197,10 @@ namespace GraphView
                     results.Add(entryRecord);
                 }
             }
-            else if (unfoldTarget is VertexField)
-            {
-                VertexField inputVertex = (VertexField) unfoldTarget;
-                RawRecord flatVertexRecord = new RawRecord();
-
-                foreach (string columnName in this.unfoldCompose1Columns) {
-                    flatVertexRecord.Append(columnName.Equals(GremlinKeyword.TableDefaultColumnName)
-                        ? inputVertex
-                        : inputVertex[columnName]);
-                }
-
-                results.Add(flatVertexRecord);
-            }
-            else if (unfoldTarget is VertexSinglePropertyField)
-            {
-                VertexSinglePropertyField inputVsp = (VertexSinglePropertyField) unfoldTarget;
-                RawRecord flatVspRecord = new RawRecord();
-
-                foreach (string columnName in this.unfoldCompose1Columns) {
-                    flatVspRecord.Append(columnName.Equals(GremlinKeyword.TableDefaultColumnName)
-                        ? inputVsp
-                        : inputVsp[columnName]);
-                }
-
-                results.Add(flatVspRecord);
-            }
-            else if (unfoldTarget is EdgeField)
-            {
-                EdgeField inputEdge = (EdgeField) unfoldTarget;
-                RawRecord newRecord = new RawRecord();
-
-                foreach (string columnName in this.unfoldCompose1Columns) {
-                    newRecord.Append(columnName.Equals(GremlinKeyword.TableDefaultColumnName)
-                        ? inputEdge
-                        : inputEdge[columnName]);
-                }
-
-                results.Add(newRecord);
-            }
             else
             {
-                RawRecord newRecord = new RawRecord();
-
-                foreach (string columnName in this.unfoldCompose1Columns) {
-                    newRecord.Append(columnName.Equals(GremlinKeyword.TableDefaultColumnName)
-                        ? unfoldTarget
-                        : (FieldObject)null);
-                }
-
-                results.Add(newRecord);
+                RawRecord flatRecord = unfoldTarget.FlatToRawRecord(this.populateColumns);
+                results.Add(flatRecord);
             }
 
             return results;

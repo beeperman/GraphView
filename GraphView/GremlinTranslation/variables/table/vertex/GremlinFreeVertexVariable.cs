@@ -39,7 +39,7 @@ namespace GraphView
             // In this case, the both-edgeTable variable is not added to the table-reference list. 
             // Instead, we populate a path this_variable-[bothEdge]->bothVertex in the context
             currentContext.TableReferences.Add(bothVertex);
-            currentContext.PathList.Add(new GremlinMatchPath(this, bothEdge, bothVertex));
+            currentContext.MatchPathList.Add(new GremlinMatchPath(this, bothEdge, bothVertex));
             currentContext.SetPivotVariable(bothVertex);
         }
 
@@ -57,7 +57,7 @@ namespace GraphView
             GremlinFreeVertexVariable outVertex = new GremlinFreeVertexVariable();
             currentContext.VariableList.Add(outVertex);
             currentContext.TableReferences.Add(outVertex);
-            currentContext.PathList.Add(new GremlinMatchPath(outVertex, inEdge, this));
+            currentContext.MatchPathList.Add(new GremlinMatchPath(outVertex, inEdge, this));
             currentContext.SetPivotVariable(outVertex);
         }
 
@@ -71,7 +71,7 @@ namespace GraphView
             GremlinFreeEdgeVariable inEdge = new GremlinFreeEdgeVariable(WEdgeType.InEdge);
             currentContext.VariableList.Add(inEdge);
             currentContext.AddLabelPredicateForEdge(inEdge, edgeLabels);
-            currentContext.PathList.Add(new GremlinMatchPath(null, inEdge, this));
+            currentContext.MatchPathList.Add(new GremlinMatchPath(null, inEdge, this));
             currentContext.SetPivotVariable(inEdge);
         }
 
@@ -89,7 +89,7 @@ namespace GraphView
             GremlinFreeVertexVariable inVertex = new GremlinFreeVertexVariable();
             currentContext.VariableList.Add(inVertex);
             currentContext.TableReferences.Add(inVertex);
-            currentContext.PathList.Add(new GremlinMatchPath(this, outEdge, inVertex));
+            currentContext.MatchPathList.Add(new GremlinMatchPath(this, outEdge, inVertex));
             currentContext.SetPivotVariable(inVertex);
         }
         internal override void OutE(GremlinToSqlContext currentContext, List<string> edgeLabels)
@@ -102,7 +102,7 @@ namespace GraphView
             GremlinFreeEdgeVariable outEdgeVar = new GremlinFreeEdgeVariable(WEdgeType.OutEdge);
             currentContext.VariableList.Add(outEdgeVar);
             currentContext.AddLabelPredicateForEdge(outEdgeVar, edgeLabels);
-            currentContext.PathList.Add(new GremlinMatchPath(this, outEdgeVar, null));
+            currentContext.MatchPathList.Add(new GremlinMatchPath(this, outEdgeVar, null));
             currentContext.SetPivotVariable(outEdgeVar);
         }
 
@@ -130,10 +130,16 @@ namespace GraphView
             base.CyclicPath(currentContext);
         }
 
-        internal override void Dedup(GremlinToSqlContext currentContext, List<string> dedupLabels, GremlinToSqlContext dedupContext, GremlinKeyword.Scope scope)
+        internal override void DedupGlobal(GremlinToSqlContext currentContext, List<string> dedupLabels, GraphTraversal2 dedupTraversal)
         {
             this.isTraversalToBound = true;
-            base.Dedup(currentContext, dedupLabels, dedupContext, scope);
+            base.DedupGlobal(currentContext, dedupLabels, dedupTraversal);
+        }
+
+        internal override void DedupLocal(GremlinToSqlContext currentContext, GremlinToSqlContext dedupContext)
+        {
+            this.isTraversalToBound = true;
+            base.DedupLocal(currentContext, dedupContext);
         }
 
         internal override void Group(GremlinToSqlContext currentContext, string sideEffectKey, GremlinToSqlContext groupByContext,
@@ -149,11 +155,16 @@ namespace GraphView
             base.Inject(currentContext, injection);
         }
 
-        internal override void Order(GremlinToSqlContext currentContext, List<Tuple<GremlinToSqlContext, IComparer>> byModulatingMap,
-            GremlinKeyword.Scope scope)
+        internal override void OrderGlobal(GremlinToSqlContext currentContext, List<Tuple<GremlinToSqlContext, IComparer>> byModulatingMap)
         {
             this.isTraversalToBound = true;
-            base.Order(currentContext, byModulatingMap, scope);
+            base.OrderGlobal(currentContext, byModulatingMap);
+        }
+
+        internal override void OrderLocal(GremlinToSqlContext currentContext, List<Tuple<GremlinToSqlContext, IComparer>> byModulatingMap)
+        {
+            this.isTraversalToBound = true;
+            base.OrderLocal(currentContext, byModulatingMap);
         }
 
         internal override void Property(GremlinToSqlContext currentContext, GremlinProperty vertexProperty)
@@ -162,17 +173,29 @@ namespace GraphView
             base.Property(currentContext, vertexProperty);
         }
 
-        internal override void Range(GremlinToSqlContext currentContext, int low, int high, GremlinKeyword.Scope scope, bool isReverse)
+        internal override void RangeLocal(GremlinToSqlContext currentContext, int low, int high, bool isReverse)
         {
             this.isTraversalToBound = true;
-            base.Range(currentContext, low, high, scope, isReverse);
+            base.RangeLocal(currentContext, low, high, isReverse);
         }
 
-        internal override void Sample(GremlinToSqlContext currentContext, GremlinKeyword.Scope scope, int amountToSample,
+        internal override void RangeGlobal(GremlinToSqlContext currentContext, int low, int high, bool isReverse)
+        {
+            this.isTraversalToBound = true;
+            base.RangeGlobal(currentContext, low, high, isReverse);
+        }
+
+        internal override void SampleGlobal(GremlinToSqlContext currentContext, int amountToSample,
             GremlinToSqlContext probabilityContext)
         {
             this.isTraversalToBound = true;
-            base.Sample(currentContext, scope, amountToSample, probabilityContext);
+            base.SampleGlobal(currentContext, amountToSample, probabilityContext);
+        }
+
+        internal override void SampleLocal(GremlinToSqlContext currentContext, int amountToSample)
+        {
+            this.isTraversalToBound = true;
+            base.SampleLocal(currentContext, amountToSample);
         }
 
         internal override void SideEffect(GremlinToSqlContext currentContext, GremlinToSqlContext sideEffectContext)

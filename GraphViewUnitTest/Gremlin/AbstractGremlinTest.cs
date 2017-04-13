@@ -6,6 +6,7 @@ using System.Linq;
 using GraphView;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace GraphViewUnitTest.Gremlin
 {
@@ -21,7 +22,9 @@ namespace GraphViewUnitTest.Gremlin
                 //ConfigurationManager.AppSettings["DocDBKey"],
                 ConfigurationManager.AppSettings["DocDBKeyLocal"],
                 ConfigurationManager.AppSettings["DocDBDatabaseGremlin"],
-                ConfigurationManager.AppSettings["DocDBCollectionModern"]);
+                ConfigurationManager.AppSettings["DocDBCollectionModern"],
+                useReverseEdges: true
+            );
 
         /// <summary>
         /// Do any necessary setup.
@@ -29,7 +32,7 @@ namespace GraphViewUnitTest.Gremlin
         [TestInitialize]
         public void Setup()
         {
-            GraphDataLoader.LoadGraphData(GraphData.MODERN);
+            GraphDataLoader.LoadGraphData(GraphData.MODERN, graphConnection.UseReverseEdges);
         }
 
         /// <summary>
@@ -59,12 +62,12 @@ namespace GraphViewUnitTest.Gremlin
             return vertexId;
         }
 
-        public string ConvertToPropertyId(GraphViewCommand GraphViewCommand, string vertexName, string property)
+        public string ConvertToPropertyId(GraphViewCommand GraphViewCommand, string vertexName, string property, string propertyValue)
         {
             OutputFormat originalFormat = GraphViewCommand.OutputFormat;
             GraphViewCommand.OutputFormat = OutputFormat.Regular;
 
-            string propertyId = GraphViewCommand.g().V().Has("name", vertexName).Properties(property).Id().Next().FirstOrDefault();
+            string propertyId = GraphViewCommand.g().V().Has("name", vertexName).Properties(property).HasValue(propertyValue).Id().Next().FirstOrDefault();
 
             GraphViewCommand.OutputFormat = originalFormat;
 
@@ -105,6 +108,11 @@ namespace GraphViewUnitTest.Gremlin
             {
                 Assert.AreEqual(expectedList[i], actualList[i]);
             }
+        }
+
+        public static List<string> ConvertToList(dynamic result)
+        {
+            return ((JArray) result).Select(p => p.ToString()).ToList();
         }
 
         public static void CheckOrderedResults<T>(IEnumerable<T> expected, IEnumerable<T> actual)
@@ -152,20 +160,6 @@ namespace GraphViewUnitTest.Gremlin
             }
             return hashMap;
         }
-
-        //public class DicionaryEqualityComparer<TKey, TValue> : IEqualityComparer<IDictionary<TKey, TValue>>
-        //{
-        //    public bool Equals(IDictionary<TKey, TValue> a, IDictionary<TKey, TValue> b)
-        //    {
-        //        return a.Count == b.Count && !a.Except(b).Any();
-        //    }
-
-        //    public int GetHashCode(IDictionary<TKey, TValue> a)
-        //    {
-        //        return a.Select(kvp => kvp.Key.GetHashCode() ^ kvp.Value.GetHashCode())
-        //            .Aggregate(0, (acc, val) => (acc ^ val));
-        //    }
-        //}
 
         public int GetVertexCount(GraphViewCommand graph)
         {

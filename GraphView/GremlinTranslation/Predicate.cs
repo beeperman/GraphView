@@ -11,8 +11,8 @@ namespace GraphView
         public bool IsTag { get; set; }
         public object Value { get; set; }
         public List<object> Values { get; set; }
-        public double Low { get; set; }
-        public double High { get; set; }
+        public object Low { get; set; }
+        public object High { get; set; }
         public PredicateType PredicateType { get; set; }
 
         public Predicate(PredicateType type, object value)
@@ -21,7 +21,7 @@ namespace GraphView
             PredicateType = type;
         }
 
-        public Predicate(PredicateType type, double low, double high)
+        public Predicate(PredicateType type, object low, object high)
         {
             Low = low;
             High = high;
@@ -31,21 +31,29 @@ namespace GraphView
         public Predicate(PredicateType type, params object[] values)
         {
             Values = new List<object>();
-            foreach(var value in values)
+            if (values != null)
             {
-                Values.Add(value);
+                foreach (var value in values)
+                {
+                    Values.Add(value);
+                }
             }
             PredicateType = type;
         }
 
-        public static Predicate eq(string value)
+        public Predicate And(Predicate predicate)
         {
-            return new Predicate(PredicateType.eq, value);
+            return new AndPredicate(this, predicate);
         }
 
-        public static Predicate eq(double number)
+        public Predicate Or(Predicate predicate)
         {
-            return new Predicate(PredicateType.eq, number);
+            return new OrPredicate(this, predicate);
+        }
+
+        public static Predicate eq(object value)
+        {
+            return new Predicate(PredicateType.eq, value);
         }
 
         public static Predicate neq(object obj)
@@ -53,52 +61,37 @@ namespace GraphView
             return new Predicate(PredicateType.neq, obj);
         }
 
-        public static Predicate neq(string label)
-        {
-            return new Predicate(PredicateType.neq, label);
-        }
-
-        public static Predicate neq(double number)
-        {
-            return new Predicate(PredicateType.neq, number);
-        }
-
-        public static Predicate lt(double value)
+        public static Predicate lt(object value)
         {
             return new Predicate(PredicateType.lt, value);
         }
 
-        public static Predicate lte(double value)
+        public static Predicate lte(object value)
         {
             return new Predicate(PredicateType.lte, value);
         }
 
-        public static Predicate gt(double value)
-        {
-            return new Predicate(PredicateType.gt, value);
-        }
-        // To support case: __.where('c',gt('u'). c and u represent 2 columns.
-        public static Predicate gt(String value)
+        public static Predicate gt(object value)
         {
             return new Predicate(PredicateType.gt, value);
         }
 
-        public static Predicate gte(double value)
+        public static Predicate gte(object value)
         {
             return new Predicate(PredicateType.gte, value);
         }
 
-        public static Predicate inside(double low, double high)
+        public static Predicate inside(object low, object high)
         {
             return new Predicate(PredicateType.inside, low, high);
         }
 
-        public static Predicate outside(double low, double high)
+        public static Predicate outside(object low, object high)
         {
             return new Predicate(PredicateType.outside, low, high);
         }
 
-        public static Predicate between(double low, double high)
+        public static Predicate between(object low, object high)
         {
             return new Predicate(PredicateType.between, low, high);
         }
@@ -108,7 +101,7 @@ namespace GraphView
             return new Predicate(PredicateType.within, objects);
         }
 
-        public static Predicate within(string label)
+        public static Predicate within(object label)
         {
             return new Predicate(PredicateType.within, label);
         }
@@ -118,13 +111,35 @@ namespace GraphView
             return new Predicate(PredicateType.without, objects);
         }
 
-        public static Predicate without(string label)
+        public static Predicate without(object label)
         {
             return new Predicate(PredicateType.without, label);
         }
 
         public static Predicate not(Predicate predicate)
         {
+            if (predicate is AndPredicate)
+            {
+                // (a * b)' = a' + b'
+                var andPredicate = predicate as AndPredicate;
+                List<Predicate> predicates = new List<Predicate>();
+                foreach (var p in andPredicate.PredicateList)
+                {
+                    predicates.Add(not(p));
+                }
+                return new OrPredicate(predicates.ToArray());
+            }
+            if (predicate is OrPredicate)
+            {
+                // (a + b)' = a' * b'
+                var orPredicate = predicate as OrPredicate;
+                List<Predicate> predicates = new List<Predicate>();
+                foreach (var p in orPredicate.PredicateList)
+                {
+                    predicates.Add(not(p));
+                }
+                return new AndPredicate(predicates.ToArray());
+            }
             if (predicate.PredicateType == PredicateType.eq)
             {
                 predicate.PredicateType = PredicateType.neq;
@@ -157,7 +172,12 @@ namespace GraphView
             }
             if (predicate.PredicateType == PredicateType.inside)
             {
-                predicate.PredicateType = PredicateType.lteAndgte;
+                predicate.PredicateType = PredicateType.lteOrgte;
+                return predicate;
+            }
+            if (predicate.PredicateType == PredicateType.lteOrgte)
+            {
+                predicate.PredicateType = PredicateType.inside;
                 return predicate;
             }
             if (predicate.PredicateType == PredicateType.outside)
@@ -165,9 +185,19 @@ namespace GraphView
                 predicate.PredicateType = PredicateType.gteAndlte;
                 return predicate;
             }
+            if (predicate.PredicateType == PredicateType.gteAndlte)
+            {
+                predicate.PredicateType = PredicateType.outside;
+                return predicate;
+            }
             if (predicate.PredicateType == PredicateType.between)
             {
-                predicate.PredicateType = PredicateType.ltAndgte;
+                predicate.PredicateType = PredicateType.ltOrgte;
+                return predicate;
+            }
+            if (predicate.PredicateType == PredicateType.ltOrgte)
+            {
+                predicate.PredicateType = PredicateType.between;
                 return predicate;
             }
             if (predicate.PredicateType == PredicateType.within)
@@ -184,8 +214,31 @@ namespace GraphView
         }
     }
 
+    public class AndPredicate: Predicate
+    {
+        public List<Predicate> PredicateList { get; set; }
+
+        public AndPredicate(params Predicate[] predicates): base(PredicateType.and, null)
+        {
+            PredicateList = new List<Predicate>(predicates);
+        }
+    }
+
+    public class OrPredicate : Predicate
+    {
+        public List<Predicate> PredicateList { get; set; }
+
+        public OrPredicate(params Predicate[] predicates): base(PredicateType.or, null)
+        {
+            PredicateList = new List<Predicate>(predicates);
+        }
+    }
+
     public enum PredicateType
     {
+        and,
+        or,
+
         eq,
         neq,
         lt,
@@ -198,8 +251,8 @@ namespace GraphView
         within,
         without,
 
-        lteAndgte,
+        lteOrgte,
         gteAndlte,
-        ltAndgte
+        ltOrgte
     }
 }

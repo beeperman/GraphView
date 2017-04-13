@@ -10,15 +10,22 @@ namespace GraphView
     {
         public GremlinVariable DroppedVariable { get; set; }
 
-        public GremlinDropVariable(GremlinVariable droppedVariable) : base(GremlinVariableType.NULL)
+        public GremlinDropVariable(GremlinVariable droppedVariable) : base(GremlinVariableType.Null)
         {
             DroppedVariable = droppedVariable;
+        }
+
+        internal override List<GremlinVariable> FetchAllVars()
+        {
+            List<GremlinVariable> variableList = new List<GremlinVariable>() { this };
+            variableList.AddRange(DroppedVariable.FetchAllVars());
+            return variableList;
         }
 
         public override WTableReference ToTableReference()
         {
             List<WScalarExpression> parameters = new List<WScalarExpression>();
-            parameters.Add(DroppedVariable.DefaultProjection().ToScalarExpression());
+            parameters.Add(DroppedVariable.GetDefaultProjection().ToScalarExpression());
             var tableRef = SqlUtil.GetFunctionTableReference(GremlinKeyword.func.Drop, parameters, GetVariableName());
             return SqlUtil.GetCrossApplyTableReference(tableRef);
         }

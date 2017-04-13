@@ -11,33 +11,72 @@ namespace GraphView
         public int Low { get; set; }
         public int High { get; set; }
         public bool IsReverse { get; set; }
-        public bool IsLocal { get; set; }
         public GremlinVariable InputVaribale { get; set; }
 
-        public GremlinRangeVariable(GremlinVariable inputVariable, int low, int high, GremlinKeyword.Scope scope, bool isReverse): base(GremlinVariableType.Table)
+        public GremlinRangeVariable(GremlinVariable inputVariable, int low, int high, bool isReverse): base(GremlinVariableType.Table)
         {
-            InputVaribale = inputVariable;
-            Low = low;
-            High = high;
-            IsLocal = scope != GremlinKeyword.Scope.Global;
-            IsReverse = isReverse;
+            this.InputVaribale = inputVariable;
+            this.Low = low;
+            this.High = high;
+            this.IsReverse = isReverse;
         }
 
         internal override List<GremlinVariable> FetchAllVars()
         {
             List<GremlinVariable> variableList = new List<GremlinVariable>() { this };
-            variableList.AddRange(InputVaribale.FetchAllVars());
+            variableList.AddRange(this.InputVaribale.FetchAllVars());
             return variableList;
+        }
+    }
+
+    internal class GremlinRangeGlobalVariable : GremlinRangeVariable
+    {
+        public GremlinRangeGlobalVariable(GremlinVariable inputVariable, int low, int high, bool isReverse)
+            : base(inputVariable, low, high, isReverse)
+        {
         }
 
         public override WTableReference ToTableReference()
         {
             List<WScalarExpression> parameters = new List<WScalarExpression>();
-            parameters.Add(InputVaribale.DefaultProjection().ToScalarExpression());
-            parameters.Add(SqlUtil.GetValueExpr(Low));
-            parameters.Add(SqlUtil.GetValueExpr(High));
-            parameters.Add(IsLocal ? SqlUtil.GetValueExpr(1) : SqlUtil.GetValueExpr(-1));
-            parameters.Add(IsReverse ? SqlUtil.GetValueExpr(1): SqlUtil.GetValueExpr(-1));
+            parameters.Add(this.InputVaribale.GetDefaultProjection().ToScalarExpression());
+            parameters.Add(SqlUtil.GetValueExpr(this.Low));
+            parameters.Add(SqlUtil.GetValueExpr(this.High));
+            parameters.Add(SqlUtil.GetValueExpr(-1)); // global flag for compilation
+            parameters.Add(this.IsReverse ? SqlUtil.GetValueExpr(1) : SqlUtil.GetValueExpr(-1));
+
+            var tableRef = SqlUtil.GetFunctionTableReference(GremlinKeyword.func.Range, parameters, GetVariableName());
+            return SqlUtil.GetCrossApplyTableReference(tableRef);
+        }
+    }
+
+    internal class GremlinRangeLocalVariable : GremlinRangeVariable
+    {
+        public GremlinRangeLocalVariable(GremlinVariable inputVariable, int low, int high, bool isReverse)
+            : base(inputVariable, low, high, isReverse)
+        {
+        }
+
+        internal override void Populate(string property)
+        {
+            this.InputVaribale.Populate(property);
+            base.Populate(property);
+        }
+
+        public override WTableReference ToTableReference()
+        {
+            List<WScalarExpression> parameters = new List<WScalarExpression>();
+            parameters.Add(this.InputVaribale.GetDefaultProjection().ToScalarExpression());
+            parameters.Add(SqlUtil.GetValueExpr(this.Low));
+            parameters.Add(SqlUtil.GetValueExpr(this.High));
+            parameters.Add(SqlUtil.GetValueExpr(1)); // local flag for compilation
+            parameters.Add(this.IsReverse ? SqlUtil.GetValueExpr(1) : SqlUtil.GetValueExpr(-1));
+
+            foreach (var property in this.ProjectedProperties)
+            {
+                parameters.Add(SqlUtil.GetValueExpr(property));
+            }
+
             var tableRef = SqlUtil.GetFunctionTableReference(GremlinKeyword.func.Range, parameters, GetVariableName());
             return SqlUtil.GetCrossApplyTableReference(tableRef);
         }

@@ -18,6 +18,13 @@ namespace GraphView
             PropertyKeys = new List<string>(propertyKeys);
         }
 
+        internal override List<GremlinVariable> FetchAllVars()
+        {
+            List<GremlinVariable> variableList = new List<GremlinVariable>() { this };
+            variableList.AddRange(InputVariable.FetchAllVars());
+            return variableList;
+        }
+
         public override WTableReference ToTableReference()
         {
             List<WScalarExpression> parameters = new List<WScalarExpression>();
@@ -25,7 +32,7 @@ namespace GraphView
             bool isFetchAll = false;
             if (PropertyKeys.Count == 0)
             {
-                parameters.Add(InputVariable.DefaultProjection().ToScalarExpression());
+                parameters.Add(InputVariable.GetDefaultProjection().ToScalarExpression());
                 isFetchAll = true;
             }
             else
@@ -42,8 +49,10 @@ namespace GraphView
                 parameters.Add(SqlUtil.GetValueExpr(projectProperty));
             }
 
-            var tableRef = SqlUtil.GetFunctionTableReference(isFetchAll ? GremlinKeyword.func.AllProperties : GremlinKeyword.func.Properties,
-                                                                    parameters, GetVariableName());
+            var tableRef =
+                SqlUtil.GetFunctionTableReference(
+                    isFetchAll ? GremlinKeyword.func.AllProperties : GremlinKeyword.func.Properties,
+                    parameters, GetVariableName());
             return SqlUtil.GetCrossApplyTableReference(tableRef);
         }
     }

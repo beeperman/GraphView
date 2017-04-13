@@ -5,9 +5,6 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
-using Microsoft.SqlServer.TransactSql.ScriptDom;
-using Newtonsoft.Json.Linq;
 using static GraphView.GraphViewKeywords;
 
 namespace GraphView
@@ -125,7 +122,7 @@ namespace GraphView
     internal class TraversalOperator2 : GraphViewExecutionOperator
     {
         private int outputBufferSize;
-        private int batchSize = 1100;
+        private int batchSize = 5000;
         private Queue<RawRecord> outputBuffer;
         private GraphViewConnection connection;
         private GraphViewExecutionOperator inputOp;
@@ -150,7 +147,7 @@ namespace GraphView
             int sinkIndex,
             JsonQuery sinkVertexQuery,
             List<Tuple<int, int>> matchingIndexes,
-            int outputBufferSize = 1000)
+            int outputBufferSize = 10000)
         {
             Open();
             this.inputOp = inputOp;
@@ -193,7 +190,8 @@ namespace GraphView
                     {
                         RawRecord resultRecord = new RawRecord { fieldValues = new List<FieldObject>() };
                         resultRecord.Append(pair.Item1);
-                        resultRecord.Append(new StringField(pair.Item2));
+                        resultRecord.Append(new ValuePropertyField(GraphViewKeywords.KW_DOC_ID, pair.Item2,
+                            JsonDataType.String, (VertexField) null));
                         outputBuffer.Enqueue(resultRecord);
                     }
 
@@ -235,17 +233,9 @@ namespace GraphView
 
                     string inClause = string.Format("{0}.id IN ({1})", sinkVertexQuery.Alias, sinkReferenceList.ToString());
 
-                    JsonQuery toSendQuery = new JsonQuery()
-                    {
-                        Alias = sinkVertexQuery.Alias,
-                        WhereSearchCondition = sinkVertexQuery.WhereSearchCondition,
-                        SelectClause = sinkVertexQuery.SelectClause,
-                        JoinClause = sinkVertexQuery.JoinClause,
-                        ProjectedColumnsType = sinkVertexQuery.ProjectedColumnsType,
-                        Properties = sinkVertexQuery.Properties,
-                    };
+                    JsonQuery toSendQuery = new JsonQuery(sinkVertexQuery);
 
-                    if (toSendQuery.WhereSearchCondition == null)
+                    if (string.IsNullOrEmpty(toSendQuery.WhereSearchCondition))
                     {
                         toSendQuery.WhereSearchCondition = inClause;
                     }
@@ -446,16 +436,9 @@ namespace GraphView
 
                     string inClause = string.Format("{0}.id IN ({1})", sinkVertexQuery.Alias, sinkReferenceList.ToString());
 
-                    JsonQuery toSendQuery = new JsonQuery()
-                    {
-                        Alias = sinkVertexQuery.Alias,
-                        WhereSearchCondition = sinkVertexQuery.WhereSearchCondition,
-                        SelectClause = sinkVertexQuery.SelectClause,
-                        ProjectedColumnsType = sinkVertexQuery.ProjectedColumnsType,
-                        Properties = sinkVertexQuery.Properties,
-                    };
+                    JsonQuery toSendQuery = new JsonQuery(sinkVertexQuery);
 
-                    if (toSendQuery.WhereSearchCondition == null)
+                    if (string.IsNullOrEmpty(toSendQuery.WhereSearchCondition))
                     {
                         toSendQuery.WhereSearchCondition = inClause;
                     }
@@ -717,297 +700,6 @@ namespace GraphView
     //    }
     //}
 
-    internal class AdjacencyListDecoder2 : GraphViewExecutionOperator
-    {
-        private GraphViewExecutionOperator inputOperator;
-        private int startVertexIndex;
-        private int startVertexLabelIndex;
-
-        private int adjacencyListIndex;
-        private int revAdjacencyListIndex;
-
-        private BooleanFunction edgePredicate;
-        private List<string> projectedFields;
-
-        private bool isStartVertexTheOriginVertex;
-
-        private Queue<RawRecord> outputBuffer;
-        private GraphViewConnection connection;
-
-        private int batchSize;
-        private bool isBatchingReverseEdgeMode;
-        private Queue<Tuple<RawRecord, string>> inputSequence;
-        private Dictionary<string, AdjacencyListField> reverseAdjacencyListCollection;
-
-        public AdjacencyListDecoder2(GraphViewExecutionOperator input,
-            int startVertexIndex, int startVertexLabelIndex, int adjacencyListIndex, int revAdjacencyListIndex, 
-            bool isStartVertexTheOriginVertex,
-            BooleanFunction edgePredicate, List<string> projectedFields,
-            GraphViewConnection connection,
-            int batchSize = 1000)
-        {
-            this.inputOperator = input;
-            this.outputBuffer = new Queue<RawRecord>();
-            this.startVertexIndex = startVertexIndex;
-            this.startVertexLabelIndex = startVertexLabelIndex;
-            this.adjacencyListIndex = adjacencyListIndex;
-            this.revAdjacencyListIndex = revAdjacencyListIndex;
-            this.isStartVertexTheOriginVertex = isStartVertexTheOriginVertex;
-            this.edgePredicate = edgePredicate;
-            this.projectedFields = projectedFields;
-            this.connection = connection;
-
-            this.batchSize = batchSize;
-            this.isBatchingReverseEdgeMode = this.revAdjacencyListIndex >= 0 && !this.connection.UseReverseEdges;
-            this.inputSequence = new Queue<Tuple<RawRecord, string>>();
-            this.reverseAdjacencyListCollection = new Dictionary<string, AdjacencyListField>();
-
-            Open();
-        }
-
-        /// <summary>
-        /// Fill edge's {_source, _sink, _other, _offset, *} meta fields
-        /// </summary>
-        /// <param name="record"></param>
-        /// <param name="edge"></param>
-        /// <param name="startVertexId"></param>
-        /// <param name="isReversedAdjList"></param>
-        private void FillMetaField(RawRecord record, EdgeField edge, string startVertexId, string startVertexLabel, bool isReversedAdjList)
-        {
-            string otherValue;
-            if (this.isStartVertexTheOriginVertex) {
-                if (isReversedAdjList) {
-                    otherValue = edge[KW_EDGE_SRCV].ToValue;
-                }
-                else {
-                    otherValue = edge[KW_EDGE_SINKV].ToValue;
-                }
-            }
-            else {
-                otherValue = startVertexId;
-            }
-
-            record.fieldValues[0] = new StringField(edge.OutV);
-            record.fieldValues[1] = new StringField(edge.InV);
-            record.fieldValues[2] = new StringField(otherValue);
-            record.fieldValues[3] = new StringField(edge.Offset.ToString());
-            record.fieldValues[4] = new EdgeField(edge, otherValue);
-        }
-
-        /// <summary>
-        /// Fill the field of selected edge's properties
-        /// </summary>
-        /// <param name="record"></param>
-        /// <param name="edge"></param>
-        private void FillPropertyField(RawRecord record, EdgeField edge)
-        {
-            for (var i = GraphViewReservedProperties.ReservedEdgeProperties.Count; i < projectedFields.Count; i++)
-            {
-                record.fieldValues[i] = edge[projectedFields[i]];
-            }
-        }
-
-        /// <summary>
-        /// Decode an adjacency list and return all the edges satisfying the edge predicate
-        /// </summary>
-        /// <param name="adjacencyList"></param>
-        /// <param name="startVertexId"></param>
-        /// <param name="startVertexLabel"></param>
-        /// <param name="isReverse"></param>
-        /// <returns></returns>
-        private List<RawRecord> DecodeAdjacencyList(AdjacencyListField adjacencyList, string startVertexId, string startVertexLabel, bool isReverse)
-        {
-            List<RawRecord> edgeRecordCollection = new List<RawRecord>();
-
-            foreach (EdgeField edge in adjacencyList.AllEdges)
-            {
-                // Construct new record
-                RawRecord edgeRecord = new RawRecord(projectedFields.Count);
-
-                FillMetaField(edgeRecord, edge, startVertexId, startVertexLabel, isReverse);
-                FillPropertyField(edgeRecord, edge);
-
-                if (edgePredicate != null && !edgePredicate.Evaluate(edgeRecord))
-                    continue;
-
-                edgeRecordCollection.Add(edgeRecord);
-            }
-
-            return edgeRecordCollection;
-        }
-
-        /// <summary>
-        /// Decode a record's adjacency list or/and reverse adjacency list
-        /// and return all the edges satisfying the edge predicate
-        /// </summary>
-        /// <param name="record"></param>
-        /// <returns></returns>
-        private List<RawRecord> Decode(RawRecord record)
-        {
-            List<RawRecord> results = new List<RawRecord>();
-            string startVertexId = record[startVertexIndex].ToValue;
-            string startVertexLabel = record[startVertexLabelIndex]?.ToValue;
-
-            if (adjacencyListIndex >= 0)
-            {
-                AdjacencyListField adj = record[adjacencyListIndex] as AdjacencyListField;
-                if (adj == null)
-                    throw new GraphViewException(string.Format("The FieldObject at {0} is not a adjacency list but {1}", 
-                        adjacencyListIndex, record[adjacencyListIndex] != null ? record[adjacencyListIndex].ToString() : "null"));
-
-                results.AddRange(DecodeAdjacencyList(adj, startVertexId, startVertexLabel, false));
-            }
-
-            if (revAdjacencyListIndex >= 0 && connection.UseReverseEdges)
-            {
-                AdjacencyListField adj = record[revAdjacencyListIndex] as AdjacencyListField;
-
-                if (adj == null)
-                    throw new GraphViewException(string.Format("The FieldObject at {0} is not a reverse adjacency list but {1}",
-                        revAdjacencyListIndex, record[revAdjacencyListIndex] != null ? record[revAdjacencyListIndex].ToString() : "null"));
-
-                results.AddRange(DecodeAdjacencyList(adj, startVertexId, startVertexLabel, true));
-            }
-
-            return results;
-        }
-
-        /// <summary>
-        /// Cross apply the adjacency list or/and reverse adjacency list of the record
-        /// </summary>
-        /// <param name="record"></param>
-        /// <returns></returns>
-        private List<RawRecord> CrossApply(RawRecord record)
-        {
-            List<RawRecord> results = new List<RawRecord>();
-
-            foreach (RawRecord edgeRecord in Decode(record))
-            {
-                RawRecord r = new RawRecord(record);
-                r.Append(edgeRecord);
-
-                results.Add(r);
-            }
-
-            return results;
-        }
-
-        /// <summary>
-        /// Send one query to get all the reverse adjacency lists of vertice in the inputSequence 
-        /// </summary>
-        private void GetReverseAdjacencyListsInBatch()
-        {
-            HashSet<string> vertexIdCollection = new HashSet<string>();
-            foreach (Tuple<RawRecord, string> tuple in inputSequence) {
-                vertexIdCollection.Add(tuple.Item2);
-            }
-
-            reverseAdjacencyListCollection = EdgeDocumentHelper.GetReverseAdjacencyListsOfVertexCollection(connection, vertexIdCollection);
-        }
-
-        /// <summary>
-        /// Cross apply the reverse adjacency list of one record in the inputSequence
-        /// </summary>
-        /// <returns></returns>
-        private List<RawRecord> CrossApplyOneRecordinInputSequence()
-        {
-            List<RawRecord> results = new List<RawRecord>();
-            Tuple<RawRecord, string> inputTuple = inputSequence.Dequeue();
-
-            RawRecord record = inputTuple.Item1;
-            string vertexId = inputTuple.Item2;
-            string startVertexLabel = record[startVertexLabelIndex]?.ToValue;
-
-            AdjacencyListField adj = reverseAdjacencyListCollection[vertexId];
-
-            foreach (RawRecord edgeRecord in DecodeAdjacencyList(adj, vertexId, startVertexLabel, true))
-            {
-                RawRecord r = new RawRecord(record);
-                r.Append(edgeRecord);
-
-                results.Add(r);
-            }
-
-            reverseAdjacencyListCollection.Remove(vertexId);
-
-            return results;
-        }
-
-        public override RawRecord Next()
-        {
-            if (outputBuffer.Count > 0) {
-                return outputBuffer.Dequeue();
-            }
-
-            while (inputSequence.Count >= batchSize 
-                || reverseAdjacencyListCollection.Count > 0 
-                || (inputSequence.Count != 0 && !inputOperator.State()))
-            {
-                if (reverseAdjacencyListCollection.Count == 0) {
-                    GetReverseAdjacencyListsInBatch();
-                }
-
-                foreach (RawRecord record in CrossApplyOneRecordinInputSequence()) {
-                    outputBuffer.Enqueue(record);
-                }
-
-                if (outputBuffer.Count > 0) {
-                    return outputBuffer.Dequeue();
-                }
-            }
-
-            while (inputOperator.State())
-            {
-                RawRecord currentRecord = inputOperator.Next();
-
-                if (currentRecord == null) {
-                    break;
-                }
-
-                if (isBatchingReverseEdgeMode && inputSequence.Count < batchSize) {
-                    inputSequence.Enqueue(new Tuple<RawRecord, string>(currentRecord, currentRecord[startVertexIndex].ToValue));
-                }
-
-                foreach (RawRecord record in CrossApply(currentRecord)) {
-                    outputBuffer.Enqueue(record);
-                }
-
-                if (outputBuffer.Count > 0) {
-                    return outputBuffer.Dequeue();
-                }
-            }
-
-            while (inputSequence.Count >= batchSize
-                || reverseAdjacencyListCollection.Count > 0
-                || (inputSequence.Count != 0 && !inputOperator.State()))
-            {
-                if (reverseAdjacencyListCollection.Count == 0) {
-                    GetReverseAdjacencyListsInBatch();
-                }
-
-                foreach (RawRecord record in CrossApplyOneRecordinInputSequence()) {
-                    outputBuffer.Enqueue(record);
-                }
-
-                if (outputBuffer.Count > 0) {
-                    return outputBuffer.Dequeue();
-                }
-            }
-
-            Close();
-            return null;
-        }
-
-        public override void ResetState()
-        {
-            inputOperator.ResetState();
-            outputBuffer?.Clear();
-            inputSequence?.Clear();
-            reverseAdjacencyListCollection?.Clear();
-            Open();
-        }
-    }
-
     //internal abstract class TableValuedScalarFunction
     //{
     //    public abstract IEnumerable<string> Apply(RawRecord record);
@@ -1147,12 +839,20 @@ namespace GraphView
         private int inputObjectIndex;
         private List<Tuple<ScalarFunction, IComparer>> orderByElements;
 
-        public OrderLocalOperator(GraphViewExecutionOperator inputOp, int inputObjectIndex, List<Tuple<ScalarFunction, IComparer>> orderByElements)
+        private List<string> populateColumns;
+
+        public OrderLocalOperator(
+            GraphViewExecutionOperator inputOp, 
+            int inputObjectIndex, 
+            List<Tuple<ScalarFunction, IComparer>> orderByElements,
+            List<string> populateColumns)
         {
             this.inputOp = inputOp;
             this.inputObjectIndex = inputObjectIndex;
             this.orderByElements = orderByElements;
             this.Open();
+
+            this.populateColumns = populateColumns;
         }
 
         public override RawRecord Next()
@@ -1161,11 +861,15 @@ namespace GraphView
 
             while (this.inputOp.State() && (srcRecord = this.inputOp.Next()) != null)
             {
+                RawRecord newRecord = new RawRecord(srcRecord);
+
                 FieldObject inputObject = srcRecord[this.inputObjectIndex];
+                FieldObject orderedObject;
                 if (inputObject is CollectionField)
                 {
                     CollectionField inputCollection = (CollectionField)inputObject;
-                    inputCollection.Collection.Sort((x, y) =>
+                    CollectionField orderedCollection = new CollectionField(inputCollection);
+                    orderedCollection.Collection.Sort((x, y) =>
                     {
                         int ret = 0;
                         foreach (Tuple<ScalarFunction, IComparer> tuple in this.orderByElements)
@@ -1193,6 +897,7 @@ namespace GraphView
                         }
                         return ret;
                     });
+                    orderedObject = orderedCollection;
                 }
                 else if (inputObject is MapField)
                 {
@@ -1228,10 +933,19 @@ namespace GraphView
                         return ret;
                     });
 
-                    inputMap.Order = entries.Select(entry => entry.Key).ToList();
+                    MapField orderedMapField = new MapField();
+                    foreach (EntryField entry in entries) {
+                        orderedMapField.Add(entry.Key, entry.Value);
+                    }
+                    orderedObject = orderedMapField;
+                }
+                else {
+                    orderedObject = inputObject;
                 }
 
-                return srcRecord;
+                RawRecord flatRawRecord = orderedObject.FlatToRawRecord(this.populateColumns);
+                newRecord.Append(flatRawRecord);
+                return newRecord;
             }
 
             this.Close();
@@ -1920,250 +1634,257 @@ namespace GraphView
         // Number of times the inner operator repeats itself.
         // If this number is less than 0, the termination condition 
         // is specified by a boolean function. 
-        private int repeatTimes;
+        private readonly int repeatTimes;
+        private int currentRepeatTimes;
 
         // The termination condition of iterations
-        private BooleanFunction terminationCondition;
+        private readonly BooleanFunction terminationCondition;
         // If this variable is true, the iteration starts with the context record. 
         // This corresponds to the while-do loop semantics. 
         // Otherwise, the iteration starts with the the output of the first execution of the inner operator,
         // which corresponds to the do-while loop semantics.
-        private bool startFromContext;
+        private readonly bool startFromContext;
         // The condition determining whether or not an intermediate state is emitted
-        private BooleanFunction emitCondition;
+        private readonly BooleanFunction emitCondition;
         // This variable specifies whether or not the context record is considered 
         // to be emitted when the iteration does not start with the context record,
         // i.e., startFromContext is false 
-        private bool emitContext;
+        private readonly bool emitContext;
 
-        private GraphViewExecutionOperator inputOp;
-        // A list record fields (identified by field indexes) from the input 
-        // operator that are fed as the initial input into the inner operator.
-        private List<int> inputFieldIndexes;
+        private readonly GraphViewExecutionOperator inputOp;
+        // initialOp recieves records from the input operator
+        // and extracts needed columns to generate records that are fed as the initial input into the inner operator.
+        private readonly ConstantSourceOperator initialSourceOp;
+        private readonly GraphViewExecutionOperator initialOp;
 
-        private GraphViewExecutionOperator innerOp;
-        private ConstantSourceOperator innerContextOp;
+        private readonly ConstantSourceOperator tempSourceOp;
+        private readonly ContainerOperator innerSourceOp;
+        private readonly GraphViewExecutionOperator innerOp;
 
-        Queue<RawRecord> repeatResultBuffer;
-        RawRecord currentRecord;
+        private Queue<RawRecord> priorStates;
+        private Queue<RawRecord> newStates;
+        private readonly Queue<RawRecord> repeatResultBuffer;
 
         public RepeatOperator(
             GraphViewExecutionOperator inputOp,
-            List<int> inputFieldIndexes,
+            ConstantSourceOperator initialSourceOp,
+            GraphViewExecutionOperator initialOp,
+            ConstantSourceOperator tempSourceOp,
+            ContainerOperator innerSourceOp,
             GraphViewExecutionOperator innerOp,
-            ConstantSourceOperator innerContextOp,
             int repeatTimes,
             BooleanFunction emitCondition,
             bool emitContext)
         {
             this.inputOp = inputOp;
-            this.inputFieldIndexes = inputFieldIndexes;
+            this.initialSourceOp = initialSourceOp;
+            this.initialOp = initialOp;
+
+            this.tempSourceOp = tempSourceOp;
+            this.innerSourceOp = innerSourceOp;
             this.innerOp = innerOp;
-            this.innerContextOp = innerContextOp;
-            this.repeatTimes = repeatTimes;
+
+            // By current implementation of Gremlin, when repeat time is set to 0,
+            // it is reset to 1.
+            this.repeatTimes = repeatTimes == 0 ? 1 : repeatTimes;
+            this.currentRepeatTimes = 0;
             this.emitCondition = emitCondition;
             this.emitContext = emitContext;
 
-            startFromContext = false;
+            this.startFromContext = false;
 
-            repeatResultBuffer = new Queue<RawRecord>();
-            Open();
+            this.priorStates = new Queue<RawRecord>();
+            this.newStates = new Queue<RawRecord>();
+            this.repeatResultBuffer = new Queue<RawRecord>();
+            this.Open();
         }
 
         public RepeatOperator(
             GraphViewExecutionOperator inputOp,
-            List<int> inputFieldIndexes,
+            ConstantSourceOperator initialSourceOp,
+            GraphViewExecutionOperator initialOp,
+            ConstantSourceOperator tempSourceOp,
+            ContainerOperator innerSourceOp,
             GraphViewExecutionOperator innerOp,
-            ConstantSourceOperator innerContextOp,
             BooleanFunction terminationCondition,
             bool startFromContext,
             BooleanFunction emitCondition,
             bool emitContext)
         {
             this.inputOp = inputOp;
-            this.inputFieldIndexes = inputFieldIndexes;
+            this.initialSourceOp = initialSourceOp;
+            this.initialOp = initialOp;
+
+            this.tempSourceOp = tempSourceOp;
+            this.innerSourceOp = innerSourceOp;
             this.innerOp = innerOp;
-            this.innerContextOp = innerContextOp;
+
             this.terminationCondition = terminationCondition;
             this.startFromContext = startFromContext;
             this.emitCondition = emitCondition;
             this.emitContext = emitContext;
             this.repeatTimes = -1;
 
-            repeatResultBuffer = new Queue<RawRecord>();
-            Open();
+            this.priorStates = new Queue<RawRecord>();
+            this.newStates = new Queue<RawRecord>();
+            this.repeatResultBuffer = new Queue<RawRecord>();
+            this.Open();
+        }
+
+        private void PrepareInnerOpSource(Queue<RawRecord> innerSourceRecords)
+        {
+            this.innerSourceOp.ResetState();
+            this.tempSourceOp.ConstantSource = null;
+            while (innerSourceRecords.Any()) {
+                this.tempSourceOp.ConstantSource = innerSourceRecords.Dequeue();
+                this.innerSourceOp.Next();
+            }
         }
 
         public override RawRecord Next()
         {
-            while (repeatResultBuffer.Count == 0 && inputOp.State())
+            if (this.repeatResultBuffer.Count > 0) {
+                return this.repeatResultBuffer.Dequeue();
+            }
+
+            if (this.repeatTimes > 0)
             {
-                currentRecord = inputOp.Next();
-                if (currentRecord == null)
-                {
-                    Close();
+                if (this.currentRepeatTimes > this.repeatTimes) {
+                    this.Close();
                     return null;
                 }
 
-                RawRecord initialRec = new RawRecord {fieldValues = new List<FieldObject>()};
-                foreach (int fieldIndex in inputFieldIndexes)
+                if (this.currentRepeatTimes == 0)
                 {
-                    initialRec.Append(fieldIndex != -1 ? currentRecord[fieldIndex] : null);
-                }
-
-                if (repeatTimes >= 0)
-                {
-                    // By current implementation of Gremlin, when repeat time is set to 0,
-                    // it is reset to 1.
-                    repeatTimes = repeatTimes == 0 ? 1 : repeatTimes;
-
-                    Queue<RawRecord> priorStates = new Queue<RawRecord>();
-                    Queue<RawRecord> newStates = new Queue<RawRecord>();
-
-                    if (emitCondition != null && emitContext)
+                    RawRecord outerRecord;
+                    while (this.inputOp.State() && (outerRecord = this.inputOp.Next()) != null)
                     {
-                        if (emitCondition.Evaluate(initialRec))
-                        {
-                            repeatResultBuffer.Enqueue(initialRec);
-                        }
-                    }
+                        this.initialSourceOp.ConstantSource = outerRecord;
+                        this.initialOp.ResetState();
+                        RawRecord initialRec = this.initialOp.Next();
 
-                    // Evaluates the loop for the first time
-                    innerContextOp.ConstantSource = initialRec;
-                    innerOp.ResetState();
-                    RawRecord newRec = null;
-                    while ((newRec = innerOp.Next()) != null)
-                    {
-                        priorStates.Enqueue(newRec);
-
-                        if (emitCondition != null && emitCondition.Evaluate(newRec))
-                        {
-                            repeatResultBuffer.Enqueue(newRec);
-                        }
-                    }
-
-                    // Evaluates the remaining number of iterations
-                    for (int i = 0; i < repeatTimes - 1; i++)
-                    {
-                        while (priorStates.Count > 0)
-                        {
-                            RawRecord priorRec = priorStates.Dequeue();
-                            innerContextOp.ConstantSource = priorRec;
-                            innerOp.ResetState();
-                            newRec = null;
-                            while ((newRec = innerOp.Next()) != null)
-                            {
-                                newStates.Enqueue(newRec);
-
-                                if (emitCondition != null && emitCondition.Evaluate(newRec))
-                                {
-                                    repeatResultBuffer.Enqueue(newRec);
-                                }
+                        if (this.emitCondition != null && this.emitContext) {
+                            if (this.emitCondition.Evaluate(initialRec)) {
+                                this.repeatResultBuffer.Enqueue(initialRec);
                             }
                         }
 
-                        Queue<RawRecord> tmpQueue = priorStates;
-                        priorStates = newStates;
-                        newStates = tmpQueue;
+                        this.priorStates.Enqueue(initialRec);
                     }
-
-                    if (emitCondition == null)
-                    {
-                        foreach (RawRecord resultRec in priorStates)
-                        {
-                            repeatResultBuffer.Enqueue(resultRec);
-                        }
+                    this.currentRepeatTimes++;
+                    if (this.repeatResultBuffer.Count > 0) {
+                        return this.repeatResultBuffer.Dequeue();
                     }
                 }
-                else 
+                //
+                // Evaluates the inner traversal for the [currentRepeatTimes] times iteration
+                //
+                while (this.currentRepeatTimes <= this.repeatTimes)
                 {
-                    Queue<RawRecord> states = new Queue<RawRecord>();
+                    this.PrepareInnerOpSource(this.priorStates);
+                    this.innerOp.ResetState();
 
-                    if (startFromContext)
-                    {
-                        if (terminationCondition != null && terminationCondition.Evaluate(initialRec))
-                        {
-                            repeatResultBuffer.Enqueue(initialRec);
-                        }
-                        else if (emitContext)
-                        {
-                            if (emitCondition == null || emitCondition.Evaluate(initialRec))
-                            {
-                                repeatResultBuffer.Enqueue(initialRec);
-                            }
-                        }
-                    }
-                    else
-                    {
-                        if (emitContext && emitCondition != null)
-                        {
-                            if (emitCondition.Evaluate(initialRec))
-                            {
-                                repeatResultBuffer.Enqueue(initialRec);
-                            }
+                    RawRecord newRec;
+                    while ((newRec = innerOp.Next()) != null) {
+                        this.newStates.Enqueue(newRec);
+                        if (this.emitCondition != null && this.emitCondition.Evaluate(newRec)) {
+                            this.repeatResultBuffer.Enqueue(newRec);
                         }
                     }
 
-                    // Evaluates the loop for the first time
-                    innerContextOp.ConstantSource = initialRec;
-                    innerOp.ResetState();
-                    RawRecord newRec = null;
-                    while ((newRec = innerOp.Next()) != null)
-                    {
-                        states.Enqueue(newRec);
+                    if (this.repeatResultBuffer.Count > 0) {
+                        return this.repeatResultBuffer.Dequeue();
                     }
 
-                    // Evaluates the remaining iterations
-                    while (states.Count > 0)
-                    {
-                        RawRecord stateRec = states.Dequeue();
+                    Queue<RawRecord> tmpQueue = this.priorStates;
+                    this.priorStates = this.newStates;
+                    this.newStates = tmpQueue;
+                    this.currentRepeatTimes++;
+                }
 
-                        if (terminationCondition != null && terminationCondition.Evaluate(stateRec))
-                        {
-                            repeatResultBuffer.Enqueue(stateRec);
-                        }
-                        else
-                        {
-                            if (emitCondition != null && emitCondition.Evaluate(stateRec))
-                            {
-                                repeatResultBuffer.Enqueue(stateRec);
-                            }
-
-                            innerContextOp.ConstantSource = stateRec;
-                            innerOp.ResetState();
-                            RawRecord loopRec = null;
-                            while ((loopRec = innerOp.Next()) != null)
-                            {
-                                states.Enqueue(loopRec);
-                            }
-                        }
+                //
+                // if emitCondition != null, the results of the final round iteration have already been emitted
+                //
+                if (this.emitCondition == null) {
+                    foreach (RawRecord resultRec in priorStates) {
+                        this.repeatResultBuffer.Enqueue(resultRec);
                     }
                 }
-            }
-
-            if (repeatResultBuffer.Count > 0)
-            {
-                RawRecord r = new RawRecord(currentRecord);
-                RawRecord repeatRecord = repeatResultBuffer.Dequeue();
-                r.Append(repeatRecord);
-
-                return r;
+                if (this.repeatResultBuffer.Count > 0) {
+                    return this.repeatResultBuffer.Dequeue();
+                }
             }
             else
             {
-                Close();
-                return null;
+                RawRecord outerRecord;
+                while (this.inputOp.State() && (outerRecord = this.inputOp.Next()) != null)
+                {
+                    this.initialSourceOp.ConstantSource = outerRecord;
+                    this.initialOp.ResetState();
+                    RawRecord initialRec = this.initialOp.Next();
+
+                    if (this.startFromContext) {
+                        if (this.terminationCondition != null && this.terminationCondition.Evaluate(initialRec)) {
+                            this.repeatResultBuffer.Enqueue(initialRec);
+                        }
+                        else if (this.emitContext) {
+                            if (this.emitCondition == null || this.emitCondition.Evaluate(initialRec)) {
+                                this.repeatResultBuffer.Enqueue(initialRec);
+                            }
+                        }
+                    }
+                    else {
+                        if (this.emitContext && this.emitCondition != null) {
+                            if (this.emitCondition.Evaluate(initialRec)) {
+                                this.repeatResultBuffer.Enqueue(initialRec);
+                            }
+                        }
+                    }
+
+                    this.priorStates.Enqueue(initialRec);
+                }
+
+                if (this.repeatResultBuffer.Count > 0) {
+                    return this.repeatResultBuffer.Dequeue();
+                }
+
+                while (this.priorStates.Count > 0)
+                {
+                    this.PrepareInnerOpSource(this.priorStates);
+                    this.innerOp.ResetState();
+
+                    RawRecord newRec;
+                    while ((newRec = innerOp.Next()) != null) {
+                        if (this.terminationCondition != null && this.terminationCondition.Evaluate(newRec)) {
+                            this.repeatResultBuffer.Enqueue(newRec);
+                        }
+                        else {
+                            if (this.emitCondition != null && this.emitCondition.Evaluate(newRec)) {
+                                this.repeatResultBuffer.Enqueue(newRec);
+                            }
+                            this.priorStates.Enqueue(newRec);
+                        }
+                    }
+
+                    if (this.repeatResultBuffer.Count > 0) {
+                        return this.repeatResultBuffer.Dequeue();
+                    }
+                }
             }
+
+            this.Close();
+            return null;
         }
 
         public override void ResetState()
         {
-            currentRecord = null;
-            inputOp.ResetState();
-            innerOp.ResetState();
-            innerContextOp.ResetState();
-            repeatResultBuffer?.Clear();
-            Open();
+            this.currentRepeatTimes = 0;
+            this.inputOp.ResetState();
+            this.innerOp.ResetState();
+            this.priorStates.Clear();
+            this.newStates.Clear();
+            this.repeatResultBuffer.Clear();
+            this.Open();
         }
     }
 
@@ -2226,8 +1947,10 @@ namespace GraphView
     {
         private GraphViewExecutionOperator inputOp;
         private ScalarFunction getInputObjectionFunc;
-
-        internal DeduplicateLocalOperator(GraphViewExecutionOperator inputOperator, ScalarFunction getInputObjectionFunc)
+        
+        internal DeduplicateLocalOperator(
+            GraphViewExecutionOperator inputOperator, 
+            ScalarFunction getInputObjectionFunc)
         {
             this.inputOp = inputOperator;
             this.getInputObjectionFunc = getInputObjectionFunc;
@@ -2245,24 +1968,41 @@ namespace GraphView
                 FieldObject inputObject = this.getInputObjectionFunc.Evaluate(currentRecord);
 
                 HashSet<Object> localObjectsSet = new HashSet<Object>();
+                CollectionField uniqueCollection = new CollectionField();
 
-                if (!(inputObject is CollectionField))
-                    throw new GraphViewException("Dedup(local) can only be applied to a list.");
-
-                CollectionField inputCollection = (CollectionField) inputObject;
-
-                for (int localObjectIndex = inputCollection.Collection.Count - 1; localObjectIndex >= 0; localObjectIndex--)
+                if (inputObject is CollectionField)
                 {
-                    Object localObj = inputCollection.Collection[localObjectIndex].ToObject();
-                    if (localObjectsSet.Contains(localObj))
+                    CollectionField inputCollection = (CollectionField)inputObject;
+                    
+                    foreach (FieldObject localFieldObject in inputCollection.Collection)
                     {
-                        inputCollection.Collection.RemoveAt(localObjectIndex);
-                        continue;
+                        Object localObj = localFieldObject.ToObject();
+                        if (!localObjectsSet.Contains(localObj))
+                        {
+                            uniqueCollection.Collection.Add(localFieldObject);
+                            localObjectsSet.Add(localObj);
+                        }
                     }
+                }
+                else if (inputObject is PathField)
+                {
+                    PathField inputPath = (PathField)inputObject;
 
-                    localObjectsSet.Add(localObj);
+                    foreach (PathStepField pathStep in inputPath.Path.Cast<PathStepField>())
+                    {
+                        Object localObj = pathStep.ToObject();
+                        if (!localObjectsSet.Contains(localObj))
+                        {
+                            uniqueCollection.Collection.Add(pathStep.StepFieldObject);
+                            localObjectsSet.Add(localObj);
+                        }
+                    }
+                }
+                else {
+                    throw new GraphViewException("Dedup(local) can only be applied to a list.");
                 }
 
+                result.Append(uniqueCollection);
                 return result;
             }
 
@@ -2337,12 +2077,22 @@ namespace GraphView
         private int count;
         private int inputCollectionIndex;
 
-        internal RangeLocalOperator(GraphViewExecutionOperator inputOp, int inputCollectionIndex, int startIndex, int count)
+        private List<string> populateColumns;
+        private bool wantSingleObject;
+
+        internal RangeLocalOperator(
+            GraphViewExecutionOperator inputOp, 
+            int inputCollectionIndex, 
+            int startIndex, int count,
+            List<string> populateColumns)
         {
             this.inputOp = inputOp;
             this.startIndex = startIndex;
             this.count = count;
             this.inputCollectionIndex = inputCollectionIndex;
+            this.populateColumns = populateColumns;
+            this.wantSingleObject = this.count == 1;
+
             this.Open();
         }
 
@@ -2352,13 +2102,16 @@ namespace GraphView
 
             while (this.inputOp.State() && (srcRecord = this.inputOp.Next()) != null)
             {
+                RawRecord newRecord = new RawRecord(srcRecord);
                 //
                 // Return records in the [runtimeStartIndex, runtimeStartIndex + runtimeCount)
                 //
                 FieldObject inputObject = srcRecord[inputCollectionIndex];
+                FieldObject filteredObject;
                 if (inputObject is CollectionField)
                 {
-                    CollectionField inputCollection = inputObject as CollectionField;
+                    CollectionField inputCollection = (CollectionField)inputObject;
+                    CollectionField newCollectionField = new CollectionField();
 
                     int runtimeStartIndex = startIndex > inputCollection.Collection.Count ? inputCollection.Collection.Count : startIndex;
                     int runtimeCount = this.count == -1 ? inputCollection.Collection.Count - runtimeStartIndex : this.count;
@@ -2366,31 +2119,69 @@ namespace GraphView
                         runtimeCount = inputCollection.Collection.Count - runtimeStartIndex;
                     }
 
-                    inputCollection.Collection = inputCollection.Collection.GetRange(runtimeStartIndex, runtimeCount);
+                    newCollectionField.Collection = inputCollection.Collection.GetRange(runtimeStartIndex, runtimeCount);
+                    if (wantSingleObject) {
+                        filteredObject = newCollectionField.Collection.Any() ? newCollectionField.Collection[0] : null;
+                    }
+                    else {
+                        filteredObject = newCollectionField;
+                    }
+                }
+                else if (inputObject is PathField)
+                {
+                    PathField inputPath = (PathField)inputObject;
+                    CollectionField newCollectionField = new CollectionField();
+
+                    int runtimeStartIndex = startIndex > inputPath.Path.Count ? inputPath.Path.Count : startIndex;
+                    int runtimeCount = this.count == -1 ? inputPath.Path.Count - runtimeStartIndex : this.count;
+                    if (runtimeStartIndex + runtimeCount > inputPath.Path.Count) {
+                        runtimeCount = inputPath.Path.Count - runtimeStartIndex;
+                    }
+
+                    newCollectionField.Collection =
+                        inputPath.Path.GetRange(runtimeStartIndex, runtimeCount)
+                            .Cast<PathStepField>()
+                            .Select(p => p.StepFieldObject)
+                            .ToList();
+                    if (wantSingleObject) {
+                        filteredObject = newCollectionField.Collection.Any() ? newCollectionField.Collection[0] : null;
+                    }
+                    else {
+                        filteredObject = newCollectionField;
+                    }
                 }
                 //
                 // Return records in the [low, high)
                 //
                 else if (inputObject is MapField)
                 {
-                    MapField inputMap = inputObject as MapField;
-                    List<FieldObject> order = inputMap.Order;
-                    int low = startIndex;
-                    int high = this.count == -1 ? order.Count : low + this.count;
+                    MapField inputMap = (MapField)inputObject;
+                    MapField newMap = new MapField();
 
-                    int index = order.Count - 1;
-                    for (; index >= low; index--)
-                    {
-                        if (index >= high) {
-                            inputMap.RemoveAt(index);
+                    int low = startIndex;
+                    int high = this.count == -1 ? inputMap.Count : low + this.count;
+
+                    int index = 0;
+                    foreach (EntryField entry in inputMap) {
+                        if (index >= low && index < high) {
+                            newMap.Add(entry.Key, entry.Value);
+                        }
+                        if (++index >= high) {
+                            break;
                         }
                     }
-                    while (index >= 0) {
-                        inputMap.RemoveAt(index--);
-                    }
+                    filteredObject = newMap;
+                }
+                else {
+                    filteredObject = inputObject;
                 }
 
-                return srcRecord;
+                if (filteredObject == null) {
+                    continue;
+                }
+                RawRecord flatRawRecord = filteredObject.FlatToRawRecord(this.populateColumns);
+                newRecord.Append(flatRawRecord);
+                return newRecord;
             }
 
             this.Close();
@@ -2459,11 +2250,19 @@ namespace GraphView
         private int lastN;
         private int inputCollectionIndex;
 
-        internal TailLocalOperator(GraphViewExecutionOperator inputOp, int inputCollectionIndex, int lastN)
+        private List<string> populateColumns;
+        private bool wantSingleObject;
+
+        internal TailLocalOperator(
+            GraphViewExecutionOperator inputOp, 
+            int inputCollectionIndex, int lastN,
+            List<string> populateColumns)
         {
             this.inputOp = inputOp;
             this.inputCollectionIndex = inputCollectionIndex;
             this.lastN = lastN;
+            this.populateColumns = populateColumns;
+            this.wantSingleObject = this.lastN == 1;
 
             this.Open();
         }
@@ -2474,13 +2273,16 @@ namespace GraphView
 
             while (this.inputOp.State() && (srcRecord = this.inputOp.Next()) != null)
             {
+                RawRecord newRecord = new RawRecord(srcRecord);
                 //
                 // Return records in the [localCollection.Count - lastN, localCollection.Count)
                 //
                 FieldObject inputObject = srcRecord[inputCollectionIndex];
+                FieldObject filteredObject;
                 if (inputObject is CollectionField)
                 {
-                    CollectionField inputCollection = inputObject as CollectionField;
+                    CollectionField inputCollection = (CollectionField)inputObject;
+                    CollectionField newCollection = new CollectionField();
 
                     int startIndex = inputCollection.Collection.Count < lastN 
                                      ? 0 
@@ -2488,7 +2290,38 @@ namespace GraphView
                     int count = startIndex + lastN > inputCollection.Collection.Count
                                      ? inputCollection.Collection.Count - startIndex
                                      : lastN;
-                    inputCollection.Collection = inputCollection.Collection.GetRange(startIndex, count);
+
+                    newCollection.Collection = inputCollection.Collection.GetRange(startIndex, count);
+                    if (wantSingleObject) {
+                        filteredObject = newCollection.Collection.Any() ? newCollection.Collection[0] : null;
+                    }
+                    else {
+                        filteredObject = newCollection;
+                    }
+                }
+                else if (inputObject is PathField)
+                {
+                    PathField inputPath = (PathField)inputObject;
+                    CollectionField newCollection = new CollectionField();
+
+                    int startIndex = inputPath.Path.Count < lastN
+                                     ? 0
+                                     : inputPath.Path.Count - lastN;
+                    int count = startIndex + lastN > inputPath.Path.Count
+                                     ? inputPath.Path.Count - startIndex
+                                     : lastN;
+
+                    newCollection.Collection =
+                        inputPath.Path.GetRange(startIndex, count)
+                            .Cast<PathStepField>()
+                            .Select(p => p.StepFieldObject)
+                            .ToList();
+                    if (wantSingleObject) {
+                        filteredObject = newCollection.Collection.Any() ? newCollection.Collection[0] : null;
+                    }
+                    else {
+                        filteredObject = newCollection;
+                    }
                 }
                 //
                 // Return records in the [low, inputMap.Count)
@@ -2496,15 +2329,26 @@ namespace GraphView
                 else if (inputObject is MapField)
                 {
                     MapField inputMap = inputObject as MapField;
+                    MapField newMap = new MapField();
                     int low = inputMap.Count - lastN;
 
-                    int index = low - 1;
-                    while (index >= 0) {
-                        inputMap.RemoveAt(index--);
+                    int index = 0;
+                    foreach (EntryField entry in inputMap) {
+                        if (index++ >= low)
+                            newMap.Add(entry.Key, entry.Value);
                     }
+                    filteredObject = newMap;
+                }
+                else {
+                    filteredObject = inputObject;
                 }
 
-                return srcRecord;
+                if (filteredObject == null) {
+                    continue;
+                }
+                RawRecord flatRawRecord = filteredObject.FlatToRawRecord(this.populateColumns);
+                newRecord.Append(flatRawRecord);
+                return newRecord;
             }
 
             this.Close();
@@ -3712,78 +3556,179 @@ namespace GraphView
 
     internal class SampleOperator : GraphViewExecutionOperator
     {
-        private readonly GraphViewExecutionOperator _inputOp;
-        private readonly long _amountToSample;
-        private readonly ScalarFunction _byFunction;  // Can be null if no "by" step
-        private readonly Random _random;
+        private readonly GraphViewExecutionOperator inputOp;
+        private readonly long amountToSample;
+        private readonly ScalarFunction byFunction;  // Can be null if no "by" step
+        private readonly Random random;
 
-        private readonly List<RawRecord> _inputRecords;
-        private readonly List<double> _inputProperties;
-        private int _nextIndex;
+        private readonly List<RawRecord> inputRecords;
+        private readonly List<double> inputProperties;
+        private int nextIndex;
 
         public SampleOperator(
             GraphViewExecutionOperator inputOp,
             long amoutToSample,
             ScalarFunction byFunction)
         {
-            this._inputOp = inputOp;
-            this._amountToSample = amoutToSample;
-            this._byFunction = byFunction;  // Can be null if no "by" step
-            this._random = new Random();
+            this.inputOp = inputOp;
+            this.amountToSample = amoutToSample;
+            this.byFunction = byFunction;  // Can be null if no "by" step
+            this.random = new Random();
 
-            this._inputRecords = new List<RawRecord>();
-            this._inputProperties = new List<double>();
-            this._nextIndex = 0;
-            Open();
+            this.inputRecords = new List<RawRecord>();
+            this.inputProperties = new List<double>();
+            this.nextIndex = 0;
+            this.Open();
         }
 
         public override RawRecord Next()
         {
-            if (this._nextIndex == 0) {
-                while (this._inputOp.State()) {
-                    RawRecord current = this._inputOp.Next();
+            if (this.nextIndex == 0) {
+                while (this.inputOp.State()) {
+                    RawRecord current = this.inputOp.Next();
                     if (current == null) break;
 
-                    this._inputRecords.Add(current);
-                    if (this._byFunction != null) {
-                        this._inputProperties.Add(double.Parse(this._byFunction.Evaluate(current).ToValue));
+                    this.inputRecords.Add(current);
+                    if (this.byFunction != null) {
+                        this.inputProperties.Add(double.Parse(this.byFunction.Evaluate(current).ToValue));
                     }
                 }
             }
 
             // Return nothing if sample amount <= 0
-            if (this._amountToSample <= 0) {
-                Close();
+            if (this.amountToSample <= 0) {
+                this.Close();
                 return null;
             }
 
             // Return all if sample amount > amount of inputs
-            if (this._amountToSample >= this._inputRecords.Count) {
-                if (this._nextIndex == this._inputRecords.Count - 1) {
-                    Close();
+            if (this.amountToSample >= this.inputRecords.Count) {
+                if (this.nextIndex == this.inputRecords.Count) {
+                    this.Close();
+                    return null;
                 }
-                return this._inputRecords[this._nextIndex++];
+                return this.inputRecords[this.nextIndex++];
             }
 
             // Sample!
-            if (this._nextIndex < this._amountToSample) {
+            if (this.nextIndex < this.amountToSample) {
                 
                 // TODO: Implement the sampling algorithm!
-                return this._inputRecords[this._nextIndex++];
+                return this.inputRecords[this.nextIndex++];
             }
 
-            Close();
+            this.Close();
             return null;
         }
 
         public override void ResetState()
         {
-            this._inputOp.ResetState();
+            this.inputOp.ResetState();
 
-            this._inputRecords.Clear();
-            this._inputProperties.Clear();
-            this._nextIndex = 0;
-            Open();
+            this.inputRecords.Clear();
+            this.inputProperties.Clear();
+            this.nextIndex = 0;
+            this.Open();
+        }
+    }
+
+    internal class SampleLocalOperator : GraphViewExecutionOperator
+    {
+        private readonly GraphViewExecutionOperator inputOp;
+        private readonly int inputCollectionIndex;
+        private readonly int amountToSample;
+
+        private readonly List<string> populateColumns;
+        private readonly Random random;
+
+        internal SampleLocalOperator(
+            GraphViewExecutionOperator inputOp,
+            int inputCollectionIndex,
+            int amountToSample,
+            List<string> populateColumns)
+        {
+            this.inputOp = inputOp;
+            this.inputCollectionIndex = inputCollectionIndex;
+            this.amountToSample = amountToSample;
+            this.populateColumns = populateColumns;
+            this.random = new Random();
+
+            this.Open();
+        }
+
+        public override RawRecord Next()
+        {
+            RawRecord srcRecord = null;
+
+            while (this.inputOp.State() && (srcRecord = this.inputOp.Next()) != null)
+            {
+                RawRecord newRecord = new RawRecord(srcRecord);
+
+                FieldObject inputObject = srcRecord[this.inputCollectionIndex];
+                FieldObject sampledObject;
+                if (inputObject is CollectionField)
+                {
+                    CollectionField inputCollection = (CollectionField)inputObject;
+                    CollectionField newCollection;
+
+                    if (inputCollection.Collection.Count <= this.amountToSample) {
+                        newCollection = new CollectionField(inputCollection);
+                    }
+                    else
+                    {
+                        List<FieldObject> tempCollection = new List<FieldObject>(inputCollection.Collection);
+                        newCollection = new CollectionField();
+
+                        while (newCollection.Collection.Count < this.amountToSample) {
+                            int pickedIndex = this.random.Next(0, tempCollection.Count);
+                            FieldObject pickedObject = tempCollection[pickedIndex];
+                            tempCollection.RemoveAt(pickedIndex);
+                            newCollection.Collection.Add(pickedObject);
+                        }
+                    }
+
+                    sampledObject = newCollection;
+                }
+                else if (inputObject is MapField)
+                {
+                    MapField inputMap = inputObject as MapField;
+                    MapField newMap;
+
+                    if (inputMap.Count <= this.amountToSample) {
+                        newMap = new MapField(inputMap);
+                    }
+                    else
+                    {
+                        List<EntryField> tempEntrySet = inputMap.EntrySet;
+                        newMap = new MapField();
+                        while (newMap.Count < this.amountToSample)
+                        {
+                            int pickedIndex = this.random.Next(0, tempEntrySet.Count);
+                            EntryField pickedEntry = tempEntrySet[pickedIndex];
+                            tempEntrySet.RemoveAt(pickedIndex);
+                            newMap.Add(pickedEntry.Key, pickedEntry.Value);
+                        }
+                    }
+
+                    sampledObject = newMap;
+                }
+                else {
+                    sampledObject = inputObject;
+                }
+
+                RawRecord flatRawRecord = sampledObject.FlatToRawRecord(this.populateColumns);
+                newRecord.Append(flatRawRecord);
+                return newRecord;
+            }
+
+            this.Close();
+            return null;
+        }
+
+        public override void ResetState()
+        {
+            this.inputOp.ResetState();
+            this.Open();
         }
     }
 
@@ -4180,6 +4125,318 @@ namespace GraphView
 
             this.Close();
             return null;
+        }
+    }
+
+    internal class AdjacencyListDecoder : GraphViewExecutionOperator
+    {
+        private readonly GraphViewExecutionOperator inputOp;
+        private readonly int startVertexIndex;
+
+        private readonly int adjacencyListIndex;
+        private readonly int revAdjacencyListIndex;
+
+        private readonly BooleanFunction edgePredicate;
+        private readonly List<string> projectedFields;
+
+        private readonly bool isStartVertexTheOriginVertex;
+
+        private readonly Queue<RawRecord> outputBuffer;
+        private readonly GraphViewConnection connection;
+
+        private readonly int batchSize;
+        private readonly Queue<Tuple<RawRecord, string>> batchInputSequence;
+
+        private readonly int outputRecordLength;
+        private bool hasConstructedSpilledAdjListsOrVirtualRevAdjListsForCurrentBatch;
+
+        public AdjacencyListDecoder(
+            GraphViewExecutionOperator inputOp,
+            int startVertexIndex, 
+            int adjacencyListIndex, int revAdjacencyListIndex,
+            bool isStartVertexTheOriginVertex,
+            BooleanFunction edgePredicate, List<string> projectedFields,
+            GraphViewConnection connection,
+            int outputRecordLength,
+            int batchSize = 1000)
+        {
+            this.inputOp = inputOp;
+            this.outputBuffer = new Queue<RawRecord>();
+            this.startVertexIndex = startVertexIndex;
+            this.adjacencyListIndex = adjacencyListIndex;
+            this.revAdjacencyListIndex = revAdjacencyListIndex;
+            this.isStartVertexTheOriginVertex = isStartVertexTheOriginVertex;
+            this.edgePredicate = edgePredicate;
+            this.projectedFields = projectedFields;
+            this.connection = connection;
+
+            this.batchSize = batchSize;
+            this.batchInputSequence = new Queue<Tuple<RawRecord, string>>();
+
+            this.outputRecordLength = outputRecordLength;
+            this.hasConstructedSpilledAdjListsOrVirtualRevAdjListsForCurrentBatch = false;
+
+            this.Open();
+        }
+
+        /// <summary>
+        /// Fill edge's {_source, _sink, _other, id, *} meta fields
+        /// </summary>
+        /// <param name="record"></param>
+        /// <param name="edge"></param>
+        /// <param name="startVertexId"></param>
+        /// <param name="isReversedAdjList"></param>
+        /// <param name="isStartVertexTheOriginVertex"></param>
+        internal static void FillMetaField(RawRecord record, EdgeField edge, 
+            string startVertexId, bool isStartVertexTheOriginVertex, bool isReversedAdjList)
+        {
+            string otherValue;
+            if (isStartVertexTheOriginVertex) {
+                if (isReversedAdjList) {
+                    otherValue = edge[KW_EDGE_SRCV].ToValue;
+                }
+                else {
+                    otherValue = edge[KW_EDGE_SINKV].ToValue;
+                }
+            }
+            else {
+                otherValue = startVertexId;
+            }
+
+            record.fieldValues[0] = new StringField(edge.OutV);
+            record.fieldValues[1] = new StringField(edge.InV);
+            record.fieldValues[2] = new StringField(otherValue);
+            record.fieldValues[3] = new StringField(edge.EdgeId);
+            record.fieldValues[4] = new EdgeField(edge, otherValue);
+        }
+
+        /// <summary>
+        /// Fill the field of selected edge's properties
+        /// </summary>
+        /// <param name="record"></param>
+        /// <param name="edge"></param>
+        /// <param name="projectedFields"></param>
+        internal static void FillPropertyField(RawRecord record, EdgeField edge, List<string> projectedFields)
+        {
+            for (int i = GraphViewReservedProperties.ReservedEdgeProperties.Count; i < projectedFields.Count; i++) {
+                record.fieldValues[i] = edge[projectedFields[i]];
+            }
+        }
+
+        /// <summary>
+        /// Decode an adjacency list and return all the edges satisfying the edge predicate
+        /// </summary>
+        /// <param name="adjacencyList"></param>
+        /// <param name="startVertexId"></param>
+        /// <param name="isReverse"></param>
+        /// <returns></returns>
+        private List<RawRecord> DecodeAdjacencyList(AdjacencyListField adjacencyList, string startVertexId, bool isReverse)
+        {
+            List<RawRecord> edgeRecordCollection = new List<RawRecord>();
+
+            foreach (EdgeField edge in adjacencyList.AllEdges) {
+                // Construct new record
+                RawRecord edgeRecord = new RawRecord(this.projectedFields.Count);
+
+                AdjacencyListDecoder.FillMetaField(edgeRecord, edge, startVertexId, this.isStartVertexTheOriginVertex, isReverse);
+                AdjacencyListDecoder.FillPropertyField(edgeRecord, edge, this.projectedFields);
+
+                if (this.edgePredicate != null && !this.edgePredicate.Evaluate(edgeRecord)) {
+                    continue;
+                }
+
+                edgeRecordCollection.Add(edgeRecord);
+            }
+
+            return edgeRecordCollection;
+        }
+
+        /// <summary>
+        /// Decode a record's adjacency list or/and reverse adjacency list
+        /// and return all the edges satisfying the edge predicate
+        /// </summary>
+        /// <param name="record"></param>
+        /// <returns></returns>
+        private List<RawRecord> Decode(RawRecord record)
+        {
+            List<RawRecord> results = new List<RawRecord>();
+            string startVertexId = record[this.startVertexIndex].ToValue;
+
+            if (this.adjacencyListIndex >= 0)
+            {
+                AdjacencyListField adj = record[this.adjacencyListIndex] as AdjacencyListField;
+                if (adj == null)
+                    throw new GraphViewException(
+                        $"The FieldObject at {this.adjacencyListIndex} is not a adjacency list but {(record[this.adjacencyListIndex] != null ? record[this.adjacencyListIndex].ToString() : "null")}");
+
+                results.AddRange(this.DecodeAdjacencyList(adj, startVertexId, false));
+            }
+
+            if (this.revAdjacencyListIndex >= 0)
+            {
+                AdjacencyListField revAdj = record[this.revAdjacencyListIndex] as AdjacencyListField;
+                if (revAdj == null)
+                    throw new GraphViewException(
+                        $"The FieldObject at {this.revAdjacencyListIndex} is not a reverse adjacency list but {(record[this.revAdjacencyListIndex] != null ? record[this.revAdjacencyListIndex].ToString() : "null")}");
+
+                results.AddRange(this.DecodeAdjacencyList(revAdj, startVertexId, true));
+            }
+
+            return results;
+        }
+
+        /// <summary>
+        /// Cross apply the adjacency list or/and reverse adjacency list of the record
+        /// </summary>
+        /// <param name="record"></param>
+        /// <returns></returns>
+        private List<RawRecord> CrossApply(RawRecord record)
+        {
+            List<RawRecord> results = new List<RawRecord>();
+
+            foreach (RawRecord edgeRecord in Decode(record)) {
+                RawRecord r = new RawRecord(record);
+                r.Append(edgeRecord);
+
+                results.Add(r);
+            }
+
+            return results;
+        }
+
+        /// <summary>
+        /// Send one query to construct all the spilled adjacency lists of vertice in the inputSequence 
+        /// </summary>
+        private void ConstructSpilledAdjListsOrVirtualRevAdjListsInBatch()
+        {
+            HashSet<string> vertexIdCollection = new HashSet<string>();
+            foreach (Tuple<RawRecord, string> tuple in batchInputSequence)
+            {
+                string vertexId = tuple.Item2;
+                VertexField vertexField;
+                this.connection.VertexCache.TryGetVertexField(vertexId, out vertexField);
+                if (vertexField != null)
+                {
+                    AdjacencyListField adj = vertexField[GraphViewKeywords.KW_VERTEX_EDGE] as AdjacencyListField;
+                    AdjacencyListField revAdj = vertexField[GraphViewKeywords.KW_VERTEX_REV_EDGE] as AdjacencyListField;
+                    Debug.Assert(adj != null, "adj != null");
+                    Debug.Assert(revAdj != null, "revAdj != null");
+                    if (adj.HasBeenFetched && revAdj.HasBeenFetched) {
+                        continue;
+                    }
+                }
+                vertexIdCollection.Add(tuple.Item2);
+            }
+
+            EdgeDocumentHelper.ConstructSpilledAdjListsOrVirtualRevAdjListsOfVertices(connection, vertexIdCollection);
+        }
+
+        public override RawRecord Next()
+        {
+            if (this.outputBuffer.Count > 0) {
+                return outputBuffer.Dequeue();
+            }
+
+            while (this.batchInputSequence.Count >= batchSize
+                || this.hasConstructedSpilledAdjListsOrVirtualRevAdjListsForCurrentBatch
+                || (this.batchInputSequence.Count != 0 && !this.inputOp.State()))
+            {
+                if (!this.hasConstructedSpilledAdjListsOrVirtualRevAdjListsForCurrentBatch) {
+                    this.ConstructSpilledAdjListsOrVirtualRevAdjListsInBatch();
+                }
+
+                Tuple<RawRecord, string> batchVertex = this.batchInputSequence.Dequeue();
+
+                this.hasConstructedSpilledAdjListsOrVirtualRevAdjListsForCurrentBatch = this.batchInputSequence.Count > 0;
+
+                RawRecord currentRecord = batchVertex.Item1;
+
+                foreach (RawRecord record in this.CrossApply(currentRecord)) {
+                    this.outputBuffer.Enqueue(record);
+                }
+
+                if (this.outputBuffer.Count > 0) {
+                    return this.outputBuffer.Dequeue();
+                }
+            }
+
+            while (this.inputOp.State())
+            {
+                RawRecord currentRecord = this.inputOp.Next();
+
+                if (currentRecord == null) {
+                    break;
+                }
+
+                Debug.Assert(currentRecord.Length <= this.outputRecordLength, "currentRecord.Length <= this.outputRecordLength");
+                bool hasBeenCrossAppliedOnServer = currentRecord.Length == this.outputRecordLength;
+
+                if (hasBeenCrossAppliedOnServer) {
+                    return currentRecord;
+                }
+
+                if (this.adjacencyListIndex >= 0)
+                {
+                    AdjacencyListField adj = currentRecord[this.adjacencyListIndex] as AdjacencyListField;
+                    Debug.Assert(adj != null, "adj != null");
+                    if (!adj.HasBeenFetched) {
+                        this.batchInputSequence.Enqueue(new Tuple<RawRecord, string>(currentRecord, currentRecord[this.startVertexIndex].ToValue));
+                        continue;
+                    }
+                }
+                else if (this.revAdjacencyListIndex >= 0)
+                {
+                    AdjacencyListField revAdj = currentRecord[this.revAdjacencyListIndex] as AdjacencyListField;
+                    Debug.Assert(revAdj != null, "revAdj != null");
+                    if (!revAdj.HasBeenFetched) {
+                        this.batchInputSequence.Enqueue(new Tuple<RawRecord, string>(currentRecord, currentRecord[this.startVertexIndex].ToValue));
+                        continue;
+                    }
+                }
+
+                foreach (RawRecord record in this.CrossApply(currentRecord)) {
+                    this.outputBuffer.Enqueue(record);
+                }
+
+                if (this.outputBuffer.Count > 0) {
+                    return this.outputBuffer.Dequeue();
+                }
+            }
+
+            while (this.batchInputSequence.Count >= batchSize
+                 || this.hasConstructedSpilledAdjListsOrVirtualRevAdjListsForCurrentBatch
+                 || (this.batchInputSequence.Count != 0 && !this.inputOp.State()))
+            {
+                if (!this.hasConstructedSpilledAdjListsOrVirtualRevAdjListsForCurrentBatch) {
+                    this.ConstructSpilledAdjListsOrVirtualRevAdjListsInBatch();
+                }
+
+                Tuple<RawRecord, string> batchVertex = this.batchInputSequence.Dequeue();
+
+                this.hasConstructedSpilledAdjListsOrVirtualRevAdjListsForCurrentBatch = this.batchInputSequence.Count > 0;
+
+                RawRecord currentRecord = batchVertex.Item1;
+
+                foreach (RawRecord record in this.CrossApply(currentRecord)) {
+                    this.outputBuffer.Enqueue(record);
+                }
+
+                if (this.outputBuffer.Count > 0) {
+                    return this.outputBuffer.Dequeue();
+                }
+            }
+
+            this.Close();
+            return null;
+        }
+
+        public override void ResetState()
+        {
+            this.inputOp.ResetState();
+            this.outputBuffer.Clear();
+            this.batchInputSequence.Clear();
+            this.hasConstructedSpilledAdjListsOrVirtualRevAdjListsForCurrentBatch = false;
+            this.Open();
         }
     }
 }

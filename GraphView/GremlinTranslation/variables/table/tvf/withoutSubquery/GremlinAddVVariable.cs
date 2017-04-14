@@ -20,8 +20,6 @@ namespace GraphView
 
         internal override void Populate(string property)
         {
-            if (ProjectedProperties.Contains(property)) return;
-            VertexProperties.Add(new GremlinProperty(GremlinKeyword.PropertyCardinality.List, property, null, null));
             base.Populate(property);
         }
 
@@ -33,7 +31,12 @@ namespace GraphView
             {
                 parameters.Add(vertexProperty.ToPropertyExpr());
             }
+            foreach (string property in this.ProjectedProperties) {
+                parameters.Add(SqlUtil.GetValueExpr(property));
+            }
+
             var secondTableRef = SqlUtil.GetFunctionTableReference(GremlinKeyword.func.AddV, parameters, GetVariableName());
+
             var crossApplyTableRef = SqlUtil.GetCrossApplyTableReference(secondTableRef);
             crossApplyTableRef.FirstTableRef = IsFirstTableReference ? SqlUtil.GetDerivedTable(SqlUtil.GetSimpleSelectQueryBlock("1"), "_") : null;
             return crossApplyTableRef;
@@ -71,7 +74,6 @@ namespace GraphView
                     VertexProperties.Remove(property);
                 }
             }
-            ProjectedProperties.Add(vertexProperty.Key);
             VertexProperties.Add(vertexProperty);
         }
     }

@@ -23,20 +23,12 @@ namespace GraphView
             InputVariable = inputVariable;
             EdgeType = WEdgeType.OutEdge;
             OtherVIndex = 1;
-            ProjectedProperties.Add(GremlinKeyword.Label);
             FromVertexContext = fromContext;
             ToVertexContext = toContext;
-
-            foreach (var edgeProperty in EdgeProperties)
-            {
-                ProjectedProperties.Add(edgeProperty.Key);
-            }
         }
 
         internal override void Populate(string property)
         {
-            if (ProjectedProperties.Contains(property)) return;
-            EdgeProperties.Add(new GremlinProperty(GremlinKeyword.PropertyCardinality.Single, property , null, null));
             base.Populate(property);
         }
 
@@ -73,16 +65,17 @@ namespace GraphView
 
             parameters.Add(SqlUtil.GetValueExpr(OtherVIndex));
 
-            if (EdgeLabel != null)
-            {
-                parameters.Add(SqlUtil.GetValueExpr(GremlinKeyword.Label));
-                parameters.Add(SqlUtil.GetValueExpr(EdgeLabel));
-            }
+            parameters.Add(this.EdgeLabel != null ? SqlUtil.GetValueExpr(this.EdgeLabel) : SqlUtil.GetValueExpr(null));
+
             foreach (var property in EdgeProperties)
             {
-                parameters.Add(SqlUtil.GetValueExpr(property.Key));
-                parameters.Add(SqlUtil.GetValueExpr(property.Value));
+                parameters.Add(property.ToPropertyExpr());
+                //parameters.Add(SqlUtil.GetValueExpr(property.Value));
             }
+            foreach (string property in this.ProjectedProperties) {
+                parameters.Add(SqlUtil.GetValueExpr(property));    
+            }
+
             var tableRef = SqlUtil.GetFunctionTableReference(GremlinKeyword.func.AddE, parameters, GetVariableName());
 
             return SqlUtil.GetCrossApplyTableReference(tableRef);
@@ -104,7 +97,6 @@ namespace GraphView
 
         internal override void Property(GremlinToSqlContext currentContext, GremlinProperty property)
         {
-            ProjectedProperties.Add(property.Key);
             EdgeProperties.Add(property);
         }
     }

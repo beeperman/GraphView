@@ -11,25 +11,25 @@ namespace GraphView
 {
     partial class WAddVTableReference2
     {
-        public JObject ConstructNodeJsonDocument(string vertexLabel, List<WPropertyExpression> vertexProperties, out List<string> projectedFieldList)
+        public JObject ConstructNodeJsonDocument(string vertexLabel, List<WPropertyExpression> vertexProperties)
         {
             Debug.Assert(vertexLabel != null);
             JObject vertexObject = new JObject {
                 [KW_VERTEX_LABEL] = vertexLabel
             };
 
-            projectedFieldList = new List<string>(GraphViewReservedProperties.InitialPopulateNodeProperties);
-            projectedFieldList.Add(GremlinKeyword.Label);
+            //projectedFieldList = new List<string>(GraphViewReservedProperties.InitialPopulateNodeProperties);
+            //projectedFieldList.Add(GremlinKeyword.Label);
 
             foreach (WPropertyExpression vertexProperty in vertexProperties) {
                 Debug.Assert(vertexProperty.Cardinality == GremlinKeyword.PropertyCardinality.List);
 
-                if (!projectedFieldList.Contains(vertexProperty.Key.Value))
-                    projectedFieldList.Add(vertexProperty.Key.Value);
+                //if (!projectedFieldList.Contains(vertexProperty.Key.Value))
+                //    projectedFieldList.Add(vertexProperty.Key.Value);
 
-                if (vertexProperty.Value.ToJValue() == null) {
-                    continue;
-                }
+                //if (vertexProperty.Value.ToJValue() == null) {
+                //    continue;
+                //}
 
                 JObject meta = new JObject();
                 foreach (KeyValuePair<WValueExpression, WValueExpression> pair in vertexProperty.MetaProperties) {
@@ -68,23 +68,26 @@ namespace GraphView
             // Parameters:
             //   #1 <WValueExpression>: Vertex label
             //   ... <WPropertyExpression>: The initial properties on vertex
-            //
+            //   ... <WValueExpression>: The projected field of AddV
 
             WValueExpression labelValue = (WValueExpression)this.Parameters[0];
 
             List<WPropertyExpression> vertexProperties = new List<WPropertyExpression>();
+            List<string> projectedField = new List<string>();
             for (int i = 1; i < this.Parameters.Count; i++) {
-                WPropertyExpression property = (WPropertyExpression)this.Parameters[i];
-                Debug.Assert(property != null, "[WAddVTableReference.Compile] Vertex property should not be null");
-                Debug.Assert(property.Cardinality == GremlinKeyword.PropertyCardinality.List, "[WAddVTableReference.Compile] Vertex property should be append-mode");
-                Debug.Assert(property.Value != null);
+                WPropertyExpression addedProperty = this.Parameters[i] as WPropertyExpression;
+                if (addedProperty != null)
+                    vertexProperties.Add(addedProperty);
 
-                vertexProperties.Add(property);
+                WValueExpression projectedProperty = this.Parameters[i] as WValueExpression;
+                if (projectedProperty != null)
+                    projectedField.Add(projectedProperty.Value);
+                //Debug.Assert(property != null, "[WAddVTableReference.Compile] Vertex property should not be null");
+                //Debug.Assert(property.Cardinality == GremlinKeyword.PropertyCardinality.List, "[WAddVTableReference.Compile] Vertex property should be append-mode");
+                //Debug.Assert(property.Value != null);
             }
 
-            List<string> projectedField;
-
-            JObject nodeJsonDocument = ConstructNodeJsonDocument(labelValue.Value, vertexProperties, out projectedField);
+            JObject nodeJsonDocument = this.ConstructNodeJsonDocument(labelValue.Value, vertexProperties);
 
             AddVOperator addVOp = new AddVOperator(
                 context.CurrentExecutionOperator,
@@ -93,13 +96,12 @@ namespace GraphView
                 projectedField);
             context.CurrentExecutionOperator = addVOp;
 
-            for (int i = 0; i < projectedField.Count; i++)
+            foreach (string propertyName in projectedField)
             {
-                string propertyName = projectedField[i];
                 ColumnGraphType columnGraphType = GraphViewReservedProperties.IsNodeReservedProperty(propertyName)
                     ? GraphViewReservedProperties.ReservedNodePropertiesColumnGraphTypes[propertyName]
                     : ColumnGraphType.Value;
-                context.AddField(Alias.Value, propertyName, columnGraphType);
+                context.AddField(this.Alias.Value, propertyName, columnGraphType);
             }
 
             return addVOp;
@@ -109,22 +111,52 @@ namespace GraphView
 
     partial class WAddETableReference
     {
+        public JObject ConstructEdgeJsonObject(WValueExpression edgeLabel, List<WPropertyExpression> addedProperties)
+        {
+            JObject edgeJsonDocument = new JObject();
+
+            GraphViewJsonCommand.UpdateProperty(edgeJsonDocument, SqlUtil.GetValueExpr(GremlinKeyword.Label), edgeLabel);
+
+            foreach (WPropertyExpression property in addedProperties)
+            {
+                GraphViewJsonCommand.UpdateProperty(edgeJsonDocument, property.Key, property.Value);
+            }
+
+            return edgeJsonDocument;
+        }
+
         internal override GraphViewExecutionOperator Compile(QueryCompilationContext context, GraphViewConnection dbConnection)
         {
-            List<string> projectedField;
-            JObject edgeJsonObject = ConstructEdgeJsonObject(out projectedField);  // metadata remains missing
 
-            WScalarSubquery srcSubQuery = Parameters[0] as WScalarSubquery;
-            WScalarSubquery sinkSubQuery = Parameters[1] as WScalarSubquery;
+            WScalarSubquery srcSubQuery = this.Parameters[0] as WScalarSubquery;
+            WScalarSubquery sinkSubQuery = this.Parameters[1] as WScalarSubquery;
             if (srcSubQuery == null || sinkSubQuery == null)
                 throw new SyntaxErrorException("The first two parameters of AddE can only be WScalarSubquery.");
-            WValueExpression otherVTagParameter = Parameters[2] as WValueExpression;
+            WValueExpression otherVTagParameter = this.Parameters[2] as WValueExpression;
+            WValueExpression edgeLabel = this.Parameters[3] as WValueExpression;
             Debug.Assert(otherVTagParameter != null, "otherVTagParameter != null");
             //
             // if otherVTag == 0, this newly added edge's otherV() is the src vertex.
             // Otherwise, it's the sink vertex
             //
             int otherVTag = int.Parse(otherVTagParameter.Value);
+
+            List<WPropertyExpression> edgeProperties = new List<WPropertyExpression>();
+            List<string> projectedField = new List<string>();
+            for (int i = 4; i < this.Parameters.Count; i += 1)
+            {
+                WPropertyExpression addedProperty = this.Parameters[i] as WPropertyExpression;
+                if (addedProperty != null) {
+                    edgeProperties.Add(addedProperty);
+                }
+
+                WValueExpression projectedProperty = this.Parameters[i] as WValueExpression;
+                if (projectedProperty != null)
+                {
+                    projectedField.Add(projectedProperty.Value);
+                }
+            }
+            JObject edgeJsonObject = this.ConstructEdgeJsonObject(edgeLabel, edgeProperties);
 
             QueryCompilationContext srcSubContext = new QueryCompilationContext(context);
             GraphViewExecutionOperator srcSubQueryOp = srcSubQuery.SubQueryExpr.Compile(srcSubContext, dbConnection);
@@ -137,15 +169,11 @@ namespace GraphView
                 otherVTag, edgeJsonObject, projectedField);
             context.CurrentExecutionOperator = addEOp;
 
-            // Update context's record layout
-            context.AddField(Alias.Value, GremlinKeyword.EdgeSourceV, ColumnGraphType.EdgeSource);
-            context.AddField(Alias.Value, GremlinKeyword.EdgeSinkV, ColumnGraphType.EdgeSink);
-            context.AddField(Alias.Value, GremlinKeyword.EdgeOtherV, ColumnGraphType.Value);
-            context.AddField(Alias.Value, GremlinKeyword.EdgeID, ColumnGraphType.EdgeId);
-            context.AddField(Alias.Value, GremlinKeyword.Star, ColumnGraphType.EdgeObject);
-            for (var i = GraphViewReservedProperties.ReservedEdgeProperties.Count; i < projectedField.Count; i++)
-            {
-                context.AddField(Alias.Value, projectedField[i], ColumnGraphType.Value);
+            foreach (string propertyName in projectedField) {
+                ColumnGraphType columnGraphType = GraphViewReservedProperties.IsEdgeReservedProperty(propertyName)
+                    ? GraphViewReservedProperties.ReservedEdgePropertiesColumnGraphTypes[propertyName]
+                    : ColumnGraphType.Value;
+                context.AddField(this.Alias.Value, propertyName, columnGraphType);
             }
 
             return addEOp;

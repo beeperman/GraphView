@@ -983,7 +983,24 @@ namespace GraphView
 
         public GraphTraversal2 Property(string key, object value, params object[] keyValues)
         {
-            return Property(GremlinKeyword.PropertyCardinality.Single, key, value, keyValues);
+            if (keyValues.Length % 2 != 0) throw new Exception("The parameter of property should be even");
+
+            GremlinAddEOp addE = GetEndOp() as GremlinAddEOp;
+            GremlinAddVOp addV = GetEndOp() as GremlinAddVOp;
+            if (addE != null)
+            {
+                if (keyValues.Length > 0) throw new SyntaxErrorException("Edge can't have meta properties");
+                addE.EdgeProperties.Add(new GremlinProperty(GremlinKeyword.PropertyCardinality.Single, key, value, null));
+            }
+            else if (addV != null && keyValues.Length == 0)
+            {
+                addV.VertexProperties.Add(new GremlinProperty(GremlinKeyword.PropertyCardinality.List, key, value, null));
+            }
+            else
+            {
+                return this.Property(GremlinKeyword.PropertyCardinality.Single, key, value, keyValues);
+            }
+            return this;
         }
 
         public GraphTraversal2 Property(GremlinKeyword.PropertyCardinality cardinality, string key, object value,
@@ -991,19 +1008,14 @@ namespace GraphView
         {
             if (keyValues.Length % 2 != 0) throw new Exception("The parameter of property should be even");
 
-            var lastOp = GetEndOp() as GremlinAddEOp;
-            if (lastOp != null) {
-                if (keyValues.Length > 0) throw new SyntaxErrorException("Edge can't have meta properties");
-                lastOp.EdgeProperties.Add(new GremlinProperty(cardinality, key, value, null));
+            Dictionary<string, object> metaProperties = new Dictionary<string, object>();
+            for (var i = 0; i < keyValues.Length; i += 2)
+            {
+                metaProperties[keyValues[i] as string] = keyValues[i + 1];
             }
-            else {
-                Dictionary<string, object> metaProperties = new Dictionary<string, object>();
-                for (var i = 0; i < keyValues.Length; i += 2) {
-                    metaProperties[keyValues[i] as string] = keyValues[i + 1];
-                }
-                GremlinProperty property = new GremlinProperty(cardinality, key, value, metaProperties);
-                this.AddOperator(new GremlinPropertyOp(property));
-            }
+            GremlinProperty property = new GremlinProperty(cardinality, key, value, metaProperties);
+            this.AddOperator(new GremlinPropertyOp(property));
+
             return this;
         }
 

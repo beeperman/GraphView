@@ -94,10 +94,5 @@ namespace GraphView
                 return context.ToSelectQueryBlock();
             } 
         }
-
-        internal override void Property(GremlinToSqlContext currentContext, GremlinProperty property)
-        {
-            EdgeProperties.Add(property);
-        }
     }
 }

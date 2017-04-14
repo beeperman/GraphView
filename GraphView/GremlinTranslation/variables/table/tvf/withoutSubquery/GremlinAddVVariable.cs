@@ -12,12 +12,6 @@ namespace GraphView
         public string VertexLabel { get; set; }
         public bool IsFirstTableReference { get; set; }
 
-        /// <summary>
-        /// g.addV("name", "marko", "name", "mike").property("name", "peter")
-        /// => {"name": {cardinality: cardinality.Single, label: "peter"}  marko and mike will be covered
-        /// </summary>
-        public Dictionary<string, List<GremlinProperty>> PropertyFromAddVParameters { get; set; }
-
         internal override void Populate(string property)
         {
             base.Populate(property);
@@ -47,34 +41,6 @@ namespace GraphView
             VertexProperties = new List<GremlinProperty>(vertexProperties);
             VertexLabel = vertexLabel;
             IsFirstTableReference = isFirstTableReference;
-            ProjectedProperties.Add(GremlinKeyword.Label);
-
-            PropertyFromAddVParameters = new Dictionary<string, List<GremlinProperty>>();
-            foreach (var property in vertexProperties)
-            {
-                ProjectedProperties.Add(property.Key);
-                if (PropertyFromAddVParameters.ContainsKey(property.Key))
-                {
-                    PropertyFromAddVParameters[property.Key].Add(property);
-                }
-                else
-                {
-                    PropertyFromAddVParameters[property.Key] = new List<GremlinProperty> {property};
-                }
-            }
-        }
-
-        internal override void Property(GremlinToSqlContext currentContext, GremlinProperty vertexProperty)
-        {
-            vertexProperty.Cardinality = GremlinKeyword.PropertyCardinality.List;
-            if (PropertyFromAddVParameters.ContainsKey(vertexProperty.Key))
-            {
-                foreach (var property in PropertyFromAddVParameters[vertexProperty.Key])
-                {
-                    VertexProperties.Remove(property);
-                }
-            }
-            VertexProperties.Add(vertexProperty);
         }
     }
 }

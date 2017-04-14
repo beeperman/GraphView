@@ -105,7 +105,7 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
                                                         .Property("name", "jinjin", "meta1", "metavalue").Next();
                
                 result = command.g().V().Has("name", "jinjin").Properties("name").Properties().Next();
-                Assert.AreEqual(2, result.Count);
+                Assert.AreEqual(1, result.Count);
 
                 command.g().V().Has("name", "jinjin").Properties("name").Properties().Drop().Next();
                 result = command.g().V().Has("name", "jinjin").Properties("name").Properties().Next();

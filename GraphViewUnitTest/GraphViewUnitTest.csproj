@@ -78,6 +78,7 @@
   </Choose>
   <ItemGroup>
     <Compile Include="DocDBQueryPerfTest.cs" />
+    <Compile Include="EvolvingPPR.cs" />
     <Compile Include="GremlinFunctionalTestSuite.cs" />
     <Compile Include="GremlinTranslationOperator.cs" />
     <Compile Include="Gremlin\AbstractGremlinTest.cs" />

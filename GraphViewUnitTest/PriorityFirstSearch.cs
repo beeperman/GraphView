@@ -162,60 +162,6 @@ namespace GraphViewUnitTest
                 depth = Int32.Parse(res[0]);
             }
             return depth;
-            /*
-            Queue<String> vertexIdQ1 = new Queue<String>();
-            Queue<String> vertexIdQ2 = new Queue<String>();
-            HashSet<String> historyVertex = new HashSet<string>();
-
-            Boolean reachDes = false;
-            int depth = 1;
-            vertexIdQ1.Enqueue(src);
-
-            while (!reachDes && vertexIdQ1.Count != 0)
-            {
-                var id = vertexIdQ1.Dequeue();
-                var tempVertexIds = graph.g().V().HasId(id).Out().Values("id").Next();
-
-                foreach (var vertexId in tempVertexIds)
-                {
-                    if (historyVertex.Contains(vertexId))
-                    {
-                        continue;
-                    }
-                    else
-                    {
-                        historyVertex.Add(vertexId);
-                    }
-                    if (vertexId == des)
-                    {
-                        reachDes = true;
-                        break;
-                    }
-                    else if (vertexId != src)
-                    {
-                        vertexIdQ2.Enqueue(vertexId);
-                    }
-                }
-                // the uppper level queue become empty, move to next level of graph
-                if (vertexIdQ1.Count == 0 && !reachDes)
-                {
-                    var swap = vertexIdQ1;
-                    vertexIdQ1 = vertexIdQ2;
-                    vertexIdQ2 = swap;
-                    depth++;
-                }
-            }
-
-            if (reachDes)
-            {
-                Console.WriteLine("Shortest Path from {0} to {1}, depth is {2}", src, des, depth);
-            }
-            else
-            {
-                Console.WriteLine("No path from {0} to {1}, depth is {2}", src, des, 0);
-            }
-            return depth;
-            */
         }
     }
 }

@@ -8,122 +8,152 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+
+
 namespace GraphViewUnitTest
 {
-    public class InaccurateV
-    {
-        public string id = "";
-        public double residue = 0;
-    }
     [TestClass]
     public class EvolvingPPR
     {
         GraphViewCommand graph;
         Dictionary<String, Double> notConvergedV = new Dictionary<string, double>();
-        double alpha = 0.85, beta = 1, bound = 0.00001;
-        double DefaultPR(string id)
+        double alpha = 0.85, beta = 1, bound = 0.01;
+
+        double DefaultPageRank(string id)
         {
             return beta * (1 - alpha);
         }
-        public void runGSMethod()
+
+        public double GetPageRank(string id)
         {
-            while (notConvergedV.Count != 0)
+            return GetPageRank(GetJTokenFromId(id));
+        }
+        public double GetPageRank(JToken from)
+        {
+            return from["properties"]["PageRank"].First["value"].ToObject<double>();
+        }
+
+        public void UpdatePageRankAndResidue(double newPageRank, double newResidue, string id)
+        {
+            graph.g().V().HasId(id).
+                Property("PageRank", newPageRank).Property("Residue", newResidue).Next();
+        }
+        public void UpdatePageRankAndResidue(double newPageRank, double newResidue, JToken to)
+        {
+            UpdatePageRankAndResidue(newPageRank, newResidue, to["id"].ToString());
+        }
+
+        public double GetResidue(JToken from)
+        {
+            try
             {
-                var key = notConvergedV.Take(1).First().Key;
-                var v = JsonConvert.DeserializeObject<JArray>(graph.g().V().HasId(key).Next().FirstOrDefault())[0];
-                // Update xi and ri
-                var oldPageRank = v["properties"]["PageRank"].First["value"].ToObject<double>();
-                double oldResidue;
-                try
-                {
-                    oldResidue = notConvergedV[v["id"].ToString()];
-                }
-                catch
-                {
-                    oldResidue = v["properties"]["Residue"].First["value"].ToObject<double>();
-                }
-
-                double newPageRank = oldPageRank + oldResidue;
-                graph.g().V().HasId(key).Property("PageRank", newPageRank).Property("Residue", 0d).Next();
-                // Update r
-                // valus id ??
-                var to = JsonConvert.DeserializeObject<JArray>(graph.g().V().HasId(key).Out().Next().FirstOrDefault());
-                foreach (var t in to)
-                {
-                    double oldResidueOft;
-                    try
-                    {
-                        oldResidueOft = notConvergedV[t["id"].ToString()];
-                    }
-                    catch
-                    {
-                        oldResidueOft = t["properties"]["Residue"].First["value"].ToObject<double>();
-                    }
-
-                    double newResidueOft = oldResidueOft + alpha / to.Count * oldResidue;
-                    if (Math.Abs(newResidueOft) > bound)
-                    {
-                        notConvergedV[t["id"].ToString()] = newResidueOft;
-                    }
-                    else
-                    {
-                        graph.g().V().HasId(t["id"].ToString()).Property("Residue", newResidueOft).Next();
-                    }
-                }
-                notConvergedV.Remove(key);
+                return notConvergedV[from["id"].ToString()];
+            }
+            catch
+            {
+                return from["properties"]["Residue"].First["value"].ToObject<double>();
             }
         }
-        public void AddV(string id)
+
+        public void UpdateResidue(double newResidue, JToken to)
         {
-            graph.g().V().HasId(id).Property("PageRank", DefaultPR(id)).Property("Residue", 0d).Next();
+            if (Math.Abs(newResidue) > bound)
+            {
+                notConvergedV[to["id"].ToString()] = newResidue;
+            }
+            else
+            {
+                graph.g().V().HasId(to["id"].ToString()).Property("Residue", newResidue).Next();
+            }
         }
+
+        public JToken GetJTokenFromId(string id)
+        {
+            return JsonConvert.DeserializeObject<JArray>(graph.g().V().HasId(id).Next().FirstOrDefault())[0];
+        }
+
+        // Not converged yet
+        public bool NotConverged()
+        {
+            return notConvergedV.Count != 0;
+        }
+
+        public JToken GetNotConverged()
+        {
+            var key = notConvergedV.Take(1).First().Key;
+            return GetJTokenFromId(key);
+        }
+
+        public JArray GetOutVertices(string id)
+        {
+            return JsonConvert.DeserializeObject<JArray>(
+                graph.g().V().HasId(id).Out().Next().FirstOrDefault());
+        }
+        public JArray GetOutVertices(JToken from)
+        {
+            return GetOutVertices(from["id"].ToString());
+        }
+
+        public void DoneWith(JToken v)
+        {
+            notConvergedV.Remove(v["id"].ToString());
+        }
+
+        public void RunGSMethod()
+        {
+            while (NotConverged())
+            {
+                var v = GetNotConverged();
+                // Update i-th PageRank and Residue
+                var oldPageRank = GetPageRank(v);
+                var oldResidue = GetResidue(v);
+                var newPageRank = oldPageRank + oldResidue;
+                UpdatePageRankAndResidue(newPageRank, 0d, v);
+                // Update r
+                var to = GetOutVertices(v);
+                foreach (var t in to)
+                {
+                    double oldResidueOft = GetResidue(t);
+                    double newResidueOft = oldResidueOft + alpha / to.Count * oldResidue;
+                    UpdateResidue(newResidueOft, t);
+                }
+                DoneWith(v);
+            }
+        }
+
         public void AddE(string fromId, string toId)
         {
             graph.OutputFormat = OutputFormat.GraphSON;
-            var from = JsonConvert.DeserializeObject<JArray>(graph.g().V().HasId(fromId).Next().FirstOrDefault())[0];
-            var xi = from["properties"]["PageRank"].First["value"].ToObject<double>();
-            
-            JArray to = JsonConvert.DeserializeObject<JArray>(graph.g().V().HasId(fromId).Out().Next().FirstOrDefault());
-            
-            // Update residue
-            foreach (var t in to)
             {
-                double newResidue;
-                try
+                var oldPageRank = GetPageRank(fromId);
+                JArray to = GetOutVertices(fromId);
+
+                // Update residue
+                foreach (var t in to)
                 {
-                    newResidue = notConvergedV[t["id"].ToString()];
+                    double newResidue = GetResidue(t);
+                    if (toId.Equals(t["id"].ToString()))
+                    {
+                        newResidue += alpha / to.Count * oldPageRank;
+                    }
+                    else
+                    {
+                        newResidue -= alpha / (to.Count * (to.Count - 1)) * oldPageRank;
+                    }
+                    UpdateResidue(newResidue, t);
                 }
-                catch
-                {
-                    newResidue = t["properties"]["Residue"].First["value"].ToObject<double>();
-                }
-                if (toId.Equals(t["id"].ToString()))
-                {
-                    newResidue += alpha / to.Count * xi;
-                }
-                else
-                {
-                    newResidue -= alpha / (to.Count * (to.Count - 1)) * xi;
-                }
-                if (Math.Abs(newResidue) > bound)
-                {
-                    notConvergedV[t["id"].ToString()] = newResidue;
-                }
-                else
-                {
-                    graph.g().V().HasId(t["id"].ToString()).Property("Residue", newResidue).Next();
-                }
+
+                RunGSMethod();
+
             }
-            runGSMethod();
             graph.OutputFormat = OutputFormat.Regular;
         }
-        public void AddE(string fromId, string[] toId)
+
+        public void AddV(string id)
         {
-            foreach(var id in toId)
-            {
-                AddE(fromId, id);
-            }
+            UpdatePageRankAndResidue(DefaultPageRank(id), 0d, id);
         }
+
         [TestMethod]
         public void LoadDataAndComputePageRank()
         {
@@ -137,6 +167,7 @@ namespace GraphViewUnitTest
             connection.ResetCollection();
             graph = new GraphViewCommand(connection);
 
+            // Froming a star-like graph
             for (int i = 1; i <= 3; i++)
             {
                 string id, fromId;
@@ -162,11 +193,7 @@ namespace GraphViewUnitTest
                 graph.g().V().Has("number", i).AddE("points_to").To(graph.g().V().HasId(toId1)).Next();
                 AddE(fromId, toId1);
             }
-
             Console.WriteLine("Finished!");
-            //var toId = graph.g().V().Has("number", 0).Values("id").Next()[0];
-            //var fromId = graph.g().V().HasId(toId).AddE("points_to").To(graph.g().V().HasId(toId)).InV().Values("id").Next()[0];
-            //AddE(fromId, toId);
         }
     }
 }

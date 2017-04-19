@@ -120,11 +120,11 @@
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\UnfoldTest.cs" />
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\FlatMapTest.cs" />
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\FoldTest.cs" />
-    <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\GraphSONTest.cs" />
+    <Compile Include="Gremlin\GraphSONTest.cs" />
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\SideEffect\InjectTest.cs" />
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\MapTest.cs" />
-    <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\LocalTest.cs" />
-    <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\OrTest.cs" />
+    <Compile Include="Gremlin\ProcessTests\Traversal\Step\Branch\LocalTest.cs" />
+    <Compile Include="Gremlin\ProcessTests\Traversal\Step\Filter\OrTest.cs" />
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\SideEffect\StoreTest.cs" />
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\SideEffect\TreeTest.cs" />
     <Compile Include="Gremlin\ProcessTests\Traversal\Step\Map\ValueMapTest.cs" />

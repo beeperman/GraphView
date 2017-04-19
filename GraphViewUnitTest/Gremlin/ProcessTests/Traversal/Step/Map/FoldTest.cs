@@ -21,12 +21,12 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
         [TestMethod]
         public void BasicFold()
         {
-            using (GraphViewCommand graphCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                graphCommand.OutputFormat = OutputFormat.GraphSON;
-                var traversal = graphCommand.g().V().Fold();
+                command.OutputFormat = OutputFormat.GraphSON;
+                GraphTraversal2 traversal = command.g().V().Fold();
                 dynamic result = JsonConvert.DeserializeObject<dynamic>(traversal.Next().FirstOrDefault());
-                graphCommand.OutputFormat = OutputFormat.Regular;
+                command.OutputFormat = OutputFormat.Regular;
 
                 Assert.AreEqual(1, ((JArray)result).Count);
                 Assert.AreEqual(6, ((JArray)result[0]).Count);
@@ -41,12 +41,12 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
         [TestMethod]
         public void FoldThenUnfold()
         {
-            using (GraphViewCommand graphCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                graphCommand.OutputFormat = OutputFormat.GraphSON;
-                var traversal = graphCommand.g().V().Fold().Unfold();
+                command.OutputFormat = OutputFormat.GraphSON;
+                GraphTraversal2 traversal = command.g().V().Fold().Unfold();
                 dynamic result = JsonConvert.DeserializeObject<dynamic>(traversal.Next().FirstOrDefault());
-                graphCommand.OutputFormat = OutputFormat.Regular;
+                command.OutputFormat = OutputFormat.Regular;
 
                 Assert.AreEqual(6, ((JArray)result).Count);
             }

@@ -22,9 +22,9 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
             cmd.OutputFormat = OutputFormat.GraphSON;
             cmd.CommandText = "g.AddV('character').Property('name', 'VENUS II').Property('weapon', 'shield')";
             cmd.OutputFormat = OutputFormat.GraphSON;
-            var results = cmd.Execute();
+            IEnumerable<string> results = cmd.Execute();
 
-            foreach (var result in results)
+            foreach (string result in results)
             {
                 Console.WriteLine(result);
             }

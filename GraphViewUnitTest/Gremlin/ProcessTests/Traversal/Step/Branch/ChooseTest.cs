@@ -18,13 +18,13 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
         [TestMethod]
         public void get_g_V_chooseXout_countX_optionX2L__nameX_optionX3L__valueMapX()
         {
-            using (GraphViewCommand GraphViewCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                var traversal = GraphViewCommand.g().V()
+                GraphTraversal2 traversal = command.g().V()
                     .Choose(GraphTraversal2.__().Out().Count())
                     .Option(2, GraphTraversal2.__().Values("name"))
                     .Option(3, GraphTraversal2.__().ValueMap());
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
 
                 Assert.AreEqual(2, result.Count);
                 Assert.AreEqual("josh", result[0]);
@@ -40,12 +40,12 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
         [TestMethod]
         public void get_g_V_chooseXhasLabelXpersonX_and_outXcreatedX__outXknowsX__identityX_name()
         {
-            using (GraphViewCommand GraphViewCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                var traversal = GraphViewCommand.g().V()
+                GraphTraversal2 traversal = command.g().V()
                     .Choose(GraphTraversal2.__().HasLabel("person").And().Out("created"),
                         GraphTraversal2.__().Out("knows"), GraphTraversal2.__().Identity()).Values("name");
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
 
                 CheckUnOrderedResults(new [] { "lop", "ripple", "josh", "vadas", "vadas" }, result);
             }
@@ -59,15 +59,15 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
         [TestMethod]
         public void get_g_V_chooseXlabelX_optionXblah__outXknowsXX_optionXbleep__outXcreatedXX_optionXnone__identityX_name()
         {
-            using (GraphViewCommand GraphViewCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                var traversal = GraphViewCommand.g().V()
+                GraphTraversal2 traversal = command.g().V()
                     .Choose(GraphTraversal2.__().Label())
                     .Option("blah", GraphTraversal2.__().Out("knows"))
                     .Option("bleep", GraphTraversal2.__().Out("created"))
                     .Option(GremlinKeyword.Pick.None, GraphTraversal2.__().Identity())
                     .Values("name");
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
 
                 AbstractGremlinTest.CheckUnOrderedResults(new [] { "marko", "vadas", "peter", "josh", "lop", "ripple" }, result);
             }
@@ -81,12 +81,12 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
         [TestMethod]
         public void get_g_V_chooseXoutXknowsX_count_isXgtX0XX__outXknowsXX_name()
         {
-            using (GraphViewCommand GraphViewCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                var traversal = GraphViewCommand.g().V()
+                GraphTraversal2 traversal = command.g().V()
                     .Choose(GraphTraversal2.__().Out("knows").Count().Is(Predicate.gt(0)), GraphTraversal2.__().Out("knows"))
                     .Values("name");
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
 
                 CheckUnOrderedResults(new [] { "vadas", "josh", "vadas", "josh", "peter", "lop", "ripple" }, result);
             }

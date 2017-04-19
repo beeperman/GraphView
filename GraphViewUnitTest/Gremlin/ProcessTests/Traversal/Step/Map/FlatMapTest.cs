@@ -19,9 +19,9 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
         [TestMethod]
         public void FlatMapWithSelect()
         {
-            using (GraphViewCommand graphCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                var traversal = graphCommand.g().V()
+                var traversal = command.g().V()
                     .As("a")
                     .FlatMap(GraphTraversal2.__().Select("a"));
                 var result = traversal.Next();

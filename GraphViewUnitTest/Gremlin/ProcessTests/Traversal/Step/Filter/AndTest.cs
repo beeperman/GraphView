@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Configuration;
 using System.Linq;
@@ -18,14 +19,14 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
         [TestMethod]
         public void AndWithParameters()
         {
-            using (GraphViewCommand GraphViewCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                var traversal = GraphViewCommand.g().V()
+                GraphTraversal2 traversal = command.g().V()
                     .And(
                         GraphTraversal2.__().Has("age", Predicate.gt(27)),
                         GraphTraversal2.__().OutE().Count().Is(Predicate.gte(2)))
                     .Values("name");
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
 
                 AbstractGremlinTest.CheckUnOrderedResults(new string[] { "marko", "josh" }, result);
             }
@@ -36,21 +37,17 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
         /// from org/apache/tinkerpop/gremlin/process/traversal/step/filter/AndTest.java
         /// Gremlin: g.V().and(outE(), has(T.label, "person").and().has("age", P.gte(32))).values("name");
         /// </summary>
-        /// <remarks>
-        /// Bug 36109: Calling GraphTraversal2.And() with no parameter throws exception.
-        /// https://msdata.visualstudio.com/DocumentDB/_workitems/edit/36511
-        /// </remarks>
         [TestMethod]
         public void AndAsInfixNotation()
         {
-            using (GraphViewCommand GraphViewCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                var traversal = GraphViewCommand.g().V()
+                GraphTraversal2 traversal = command.g().V()
                     .And(
                         GraphTraversal2.__().OutE(),
                         GraphTraversal2.__().HasLabel("person").And().Has("age", Predicate.gte(32)))
                     .Values("name");
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
 
                 AbstractGremlinTest.CheckUnOrderedResults(new string[] { "josh", "peter" }, result);
             }
@@ -64,11 +61,11 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
         [TestMethod]
         public void AndWithAs()
         {
-            using (GraphViewCommand GraphViewCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                string vertex = ConvertToVertexId(GraphViewCommand, "marko");
-                GraphViewCommand.OutputFormat = OutputFormat.GraphSON;
-                var traversal = GraphViewCommand.g().V()
+                string vertex = this.ConvertToVertexId(command, "marko");
+                command.OutputFormat = OutputFormat.GraphSON;
+                GraphTraversal2 traversal = command.g().V()
                     .As("a")
                     .Out("knows")
                     .And()
@@ -76,7 +73,7 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
                     .In("created")
                     .As("a")
                     .Values("name");
-                var result = JsonConvert.DeserializeObject<dynamic>(traversal.Next().FirstOrDefault()).First;
+                dynamic result = JsonConvert.DeserializeObject<dynamic>(traversal.Next().FirstOrDefault()).First;
 
                 Assert.AreEqual(vertex, (string)result.id);
             }
@@ -87,21 +84,17 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
         /// from org/apache/tinkerpop/gremlin/process/traversal/step/filter/AndTest.java
         /// Gremlin: g.V().as("a").and(select("a"), select("a"));
         /// </summary>
-        /// <remarks>
-        /// Bug 36111: And(Select(), Select()) throws exception
-        /// https://msdata.visualstudio.com/DocumentDB/_workitems/edit/36510
-        /// </remarks>
         [TestMethod]
         public void AndWithSelect()
         {
-            using (GraphViewCommand GraphViewCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                var traversal = GraphViewCommand.g().V()
+                GraphTraversal2 traversal = command.g().V()
                     .As("a")
                     .And(
                         GraphTraversal2.__().Select("a"),
                         GraphTraversal2.__().Select("a"));
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
 
                 Assert.AreEqual(6, result.Count());
             }

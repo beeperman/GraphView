@@ -1,15 +1,10 @@
 ﻿using System.Collections.Generic;
-using System.Configuration;
 using System.Linq;
 using GraphView;
-using GraphViewUnitTest.Gremlin;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json;
 using System;
 
-//------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.  All rights reserved.
-//------------------------------------------------------------
 namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
 {
     /// <summary>
@@ -18,18 +13,14 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
     [TestClass]
     public class WhereTest : AbstractGremlinTest
     {
-        /// <summary>
-        /// </summary>
-        /// <remarks>
-        /// </remarks>
         [TestMethod]
         public void WhereNeqTest()
         {
             using (GraphViewCommand graphCommand = new GraphViewCommand(graphConnection))
             {
                 graphCommand.OutputFormat = OutputFormat.GraphSON;
-                var traversal = graphCommand.g().V(1).As("a").Out("created").In("created").Where(Predicate.neq("a"));
-                var result = traversal.Next();
+                GraphTraversal2 traversal = graphCommand.g().V(1).As("a").Out("created").In("created").Where(Predicate.neq("a"));
+                List<string> result = traversal.Next();
                 Console.WriteLine("Result Count: " + result.Count);
             }
         }
@@ -44,22 +35,22 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
             {
                 graphCommand.OutputFormat = OutputFormat.GraphSON;
 
-                var traversal = graphCommand.g().V().Has("age").As("a")
+                GraphTraversal2 traversal = graphCommand.g().V().Has("age").As("a")
                                                     .Out().In().Has("age").As("b")
                                                     .Select("a", "b").Where("a", Predicate.eq("b"));
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
                 dynamic dynamicResult = JsonConvert.DeserializeObject<dynamic>(result.FirstOrDefault());
 
                 Assert.AreEqual(6, dynamicResult.Count);
                 List<string> ans = new List<string>();
-                foreach (var temp in dynamicResult)
+                foreach (dynamic temp in dynamicResult)
                 {
                     ans.Add("a," + temp["a"]["id"].ToString() + ";b," + temp["b"]["id"].ToString());
                 }
-                var markoId = ConvertToVertexId(graphCommand, "marko");
-                var joshId = ConvertToVertexId(graphCommand, "josh");
-                var peterId = ConvertToVertexId(graphCommand, "peter");
+                string markoId = this.ConvertToVertexId(graphCommand, "marko");
+                string joshId = this.ConvertToVertexId(graphCommand, "josh");
+                string peterId = this.ConvertToVertexId(graphCommand, "peter");
 
                 List<string> expected = new List<string>
                 {
@@ -86,22 +77,22 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
             {
                 graphCommand.OutputFormat = OutputFormat.GraphSON;
 
-                var traversal = graphCommand.g().V().Has("age").As("a")
+                GraphTraversal2 traversal = graphCommand.g().V().Has("age").As("a")
                                                     .Out().In().Has("age").As("b")
                                                     .Select("a", "b").Where("a", Predicate.neq("b"));
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
                 dynamic dynamicResult = JsonConvert.DeserializeObject<dynamic>(result.FirstOrDefault());
 
                 Assert.AreEqual(6, dynamicResult.Count);
                 List<string> ans = new List<string>();
-                foreach (var temp in dynamicResult)
+                foreach (dynamic temp in dynamicResult)
                 {
                     ans.Add("a," + temp["a"]["id"].ToString() + ";b," + temp["b"]["id"].ToString());
                 }
-                var markoId = ConvertToVertexId(graphCommand, "marko");
-                var joshId = ConvertToVertexId(graphCommand, "josh");
-                var peterId = ConvertToVertexId(graphCommand, "peter");
+                string markoId = this.ConvertToVertexId(graphCommand, "marko");
+                string joshId = this.ConvertToVertexId(graphCommand, "josh");
+                string peterId = this.ConvertToVertexId(graphCommand, "peter");
 
                 List<string> expected = new List<string>
                 {
@@ -128,23 +119,23 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
             {
                 graphCommand.OutputFormat = OutputFormat.GraphSON;
 
-                var traversal = graphCommand.g().V().Has("age").As("a")
+                GraphTraversal2 traversal = graphCommand.g().V().Has("age").As("a")
                                                     .Out().In().Has("age").As("b")
                                                     .Select("a", "b")
                                                     .Where(GraphTraversal2.__().As("b").Has("name", "marko"));
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
                 dynamic dynamicResult = JsonConvert.DeserializeObject<dynamic>(result.FirstOrDefault());
 
                 Assert.AreEqual(5, dynamicResult.Count);
                 List<string> ans = new List<string>();
-                foreach (var temp in dynamicResult)
+                foreach (dynamic temp in dynamicResult)
                 {
                     ans.Add("a," + temp["a"]["id"].ToString() + ";b," + temp["b"]["id"].ToString());
                 }
-                var markoId = ConvertToVertexId(graphCommand, "marko");
-                var joshId = ConvertToVertexId(graphCommand, "josh");
-                var peterId = ConvertToVertexId(graphCommand, "peter");
+                string markoId = this.ConvertToVertexId(graphCommand, "marko");
+                string joshId = this.ConvertToVertexId(graphCommand, "josh");
+                string peterId = this.ConvertToVertexId(graphCommand, "peter");
 
                 List<string> expected = new List<string>
                 {
@@ -169,22 +160,22 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
             {
                 graphCommand.OutputFormat = OutputFormat.GraphSON;
 
-                var traversal = graphCommand.g().V().Has("age").As("a")
+                GraphTraversal2 traversal = graphCommand.g().V().Has("age").As("a")
                                                     .Out().In().Has("age").As("b")
                                                     .Select("a", "b")
                                                     .Where(GraphTraversal2.__().As("a").Out("knows").As("b"));
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
                 dynamic dynamicResult = JsonConvert.DeserializeObject<dynamic>(result.FirstOrDefault());
 
                 Assert.AreEqual(1, dynamicResult.Count);
                 List<string> ans = new List<string>();
-                foreach (var temp in dynamicResult)
+                foreach (dynamic temp in dynamicResult)
                 {
                     ans.Add("a," + temp["a"]["id"].ToString() + ";b," + temp["b"]["id"].ToString());
                 }
-                var markoId = ConvertToVertexId(graphCommand, "marko");
-                var joshId = ConvertToVertexId(graphCommand, "josh");
+                string markoId = this.ConvertToVertexId(graphCommand, "marko");
+                string joshId = this.ConvertToVertexId(graphCommand, "josh");
 
                 List<string> expected = new List<string>
                 {
@@ -203,12 +194,12 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
         {
             using (GraphViewCommand graphCommand = new GraphViewCommand(graphConnection))
             {
-                var traversal = graphCommand.g().V().As("a")
+                GraphTraversal2 traversal = graphCommand.g().V().As("a")
                                                     .Out("created")
                                                     .Where(GraphTraversal2.__().As("a").Values("name").Is("josh"))
                                                     .In("created").Values("name");
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
                 CheckUnOrderedResults(new [] {"josh", "josh", "marko", "peter"}, result);
             }
         }
@@ -253,11 +244,11 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
             {
                 string markoVertexId = this.ConvertToVertexId(graphCommand, "marko");
 
-                var traversal = graphCommand.g().V().HasId(markoVertexId).As("a")
+                GraphTraversal2 traversal = graphCommand.g().V().HasId(markoVertexId).As("a")
                                                     .Out("created").In("created").As("b")
                                                     .Where("a", Predicate.neq("b")).Values("name");
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
                 CheckUnOrderedResults(new List<string> { "josh", "peter" }, result);
             }
         }
@@ -273,14 +264,12 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
             {
                 string markoVertexId = this.ConvertToVertexId(graphCommand, "marko");
 
-                // Skipping this validation until we can fix the bugs.
-
-                var traversal = graphCommand.g().V().HasId(markoVertexId).As("a")
+                GraphTraversal2 traversal = graphCommand.g().V().HasId(markoVertexId).As("a")
                                                     .Out("created").In("created").As("b")
                                                     .Where(GraphTraversal2.__().As("b").Out("created").Has("name", "ripple"))
                                                     .Values("age", "name");
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
                 CheckUnOrderedResults(new List<string> { "josh", "32" }, result);
             }
         }
@@ -296,11 +285,11 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
             {
                 string markoVertexId = this.ConvertToVertexId(graphCommand, "marko");
 
-                var traversal = graphCommand.g().V().HasId(markoVertexId).As("a")
+                GraphTraversal2 traversal = graphCommand.g().V().HasId(markoVertexId).As("a")
                                                     .Out("created").In("created")
                                                     .Where(Predicate.eq("a")).Values("name");
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
                 CheckOrderedResults(new List<string> { "marko"}, result);
             }
         }
@@ -316,11 +305,11 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
             {
                 string markoVertexId = this.ConvertToVertexId(graphCommand, "marko");
 
-                var traversal = graphCommand.g().V().HasId(markoVertexId).As("a")
+                GraphTraversal2 traversal = graphCommand.g().V().HasId(markoVertexId).As("a")
                                                     .Out("created").In("created")
                                                     .Where(Predicate.neq("a")).Values("name");
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
                 CheckUnOrderedResults(new List<string> { "peter", "josh" }, result);
             }
         }
@@ -336,11 +325,11 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
             {
                 string markoVertexId = this.ConvertToVertexId(graphCommand, "marko");
 
-                var traversal = graphCommand.g().V().HasId(markoVertexId).Out()
+                GraphTraversal2 traversal = graphCommand.g().V().HasId(markoVertexId).Out()
                                                     .Aggregate("x").Out()
                                                     .Where(Predicate.not(Predicate.within("x")));
 
-                var result = traversal.Values("name").Next();
+                List<string> result = traversal.Values("name").Next();
                 CheckOrderedResults(new List<string> { "ripple" }, result);
             }
         }
@@ -393,14 +382,14 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
 
                 graphCommand.OutputFormat = OutputFormat.Regular;
 
-                var traversal = graphCommand.g().V().HasId(markoVertexId)
+                GraphTraversal2 traversal = graphCommand.g().V().HasId(markoVertexId)
                                                     .Repeat(GraphTraversal2.__().BothE("created")
                                                                                 .Where(Predicate.without("e"))
                                                                                 .Aggregate("e")
                                                                                 .OtherV())
                                                     .Emit().Path();
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
 
                 dynamic dynamicResult = JsonConvert.DeserializeObject<dynamic>(traversal.FirstOrDefault());
                 
@@ -417,14 +406,12 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
         {
             using (GraphViewCommand graphCommand = new GraphViewCommand(graphConnection))
             {
-                var traversal = graphCommand.g().V().Where(GraphTraversal2.__().Not(
+                GraphTraversal2 traversal = graphCommand.g().V().Where(GraphTraversal2.__().Not(
                                                                 GraphTraversal2.__().Out("created")))
                                                     .Values("name");
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
                 CheckUnOrderedResults(new List<string> { "vadas", "lop", "ripple" }, result);
-
-                // Skipping this validation until we can fix the bugs.
             }
         }
 
@@ -439,7 +426,7 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
             {
                 graphCommand.OutputFormat = OutputFormat.GraphSON;
 
-                var traversal = graphCommand.g().V()
+                GraphTraversal2 traversal = graphCommand.g().V()
                     .As("a")
                     .Out()
                     .As("b")
@@ -462,18 +449,18 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
                                             .Is(Predicate.not(Predicate.eq(0))))))
                     .Select("a", "b");
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
                 dynamic dynamicResult = JsonConvert.DeserializeObject<dynamic>(result.FirstOrDefault());
 
                 Assert.AreEqual(2, dynamicResult.Count);
                 List<string> ans = new List<string>();
-                foreach (var temp in dynamicResult)
+                foreach (dynamic temp in dynamicResult)
                 {
                     ans.Add("a," + temp["a"]["id"].ToString() + ";b," + temp["b"]["id"].ToString());
                 }
-                var markoId = ConvertToVertexId(graphCommand, "marko");
-                var joshId = ConvertToVertexId(graphCommand, "josh");
-                var vadasId = ConvertToVertexId(graphCommand, "vadas");
+                string markoId = this.ConvertToVertexId(graphCommand, "marko");
+                string joshId = this.ConvertToVertexId(graphCommand, "josh");
+                string vadasId = this.ConvertToVertexId(graphCommand, "vadas");
 
                 List<string> expected = new List<string>
                 {
@@ -493,14 +480,14 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
         {
             using (GraphViewCommand graphCommand = new GraphViewCommand(graphConnection))
             {
-                var traversal = graphCommand.g().V().Where(GraphTraversal2.__().Out("created")
+                GraphTraversal2 traversal = graphCommand.g().V().Where(GraphTraversal2.__().Out("created")
                                                                                .And()
                                                                                .Out("knows")
                                                                                .Or()
                                                                                .In("knows"))
                                                     .Values("name");
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
                 CheckUnOrderedResults(new List<string> { "marko", "vadas", "josh" }, result);
             }
         }
@@ -516,7 +503,7 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
             {
                 graphCommand.OutputFormat = OutputFormat.GraphSON;
 
-                var traversal = graphCommand.g().V().As("a")
+                GraphTraversal2 traversal = graphCommand.g().V().As("a")
                                                     .Out("created").As("b")
                                                     .Where(GraphTraversal2.__().And(
                                                                                     GraphTraversal2.__().As("b")
@@ -527,18 +514,18 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
                                                                                                                             .Has("name", "ripple"))))
                                                     .Select("a", "b");
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
                 dynamic dynamicResult = JsonConvert.DeserializeObject<dynamic>(result.FirstOrDefault());
 
                 Assert.AreEqual(2, dynamicResult.Count);
                 List<string> ans = new List<string>();
-                foreach (var temp in dynamicResult)
+                foreach (dynamic temp in dynamicResult)
                 {
                     ans.Add("a," + temp["a"]["id"].ToString() + ";b," + temp["b"]["id"].ToString());
                 }
-                var markoId = ConvertToVertexId(graphCommand, "marko");
-                var lopId = ConvertToVertexId(graphCommand, "lop");
-                var peterId = ConvertToVertexId(graphCommand, "peter");
+                string markoId = this.ConvertToVertexId(graphCommand, "marko");
+                string lopId = this.ConvertToVertexId(graphCommand, "lop");
+                string peterId = this.ConvertToVertexId(graphCommand, "peter");
 
                 List<string> expected = new List<string>
                 {
@@ -561,7 +548,7 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
             {
                 graphCommand.OutputFormat = OutputFormat.GraphSON;
 
-                var traversal = graphCommand.g().V().As("a")
+                GraphTraversal2 traversal = graphCommand.g().V().As("a")
                                                     .Out("created").As("b")
                                                     .In("created").As("c")
                                                     .Both("knows").Both("knows").As("d")
@@ -571,23 +558,23 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
                                                                             .Where("c", Predicate.not(Predicate.eq("d"))))
                                                     .Select("a", "b", "c", "d");
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
                 dynamic dynamicResult = JsonConvert.DeserializeObject<dynamic>(result.FirstOrDefault());
 
                 Assert.AreEqual(2, dynamicResult.Count);
                 List<string> ans = new List<string>();
-                foreach (var temp in dynamicResult)
+                foreach (dynamic temp in dynamicResult)
                 {
                     ans.Add("a," + temp["a"]["id"].ToString() 
                          + ";b," + temp["b"]["id"].ToString()
                          + ";c," + temp["c"]["id"].ToString()
                          + ";d," + temp["d"]["id"].ToString());
                 }
-                var markoId = ConvertToVertexId(graphCommand, "marko");
-                var joshId = ConvertToVertexId(graphCommand, "josh");
-                var lopId = ConvertToVertexId(graphCommand, "lop");
-                var vadasId = ConvertToVertexId(graphCommand, "vadas");
-                var peterId = ConvertToVertexId(graphCommand, "peter");
+                string markoId = this.ConvertToVertexId(graphCommand, "marko");
+                string joshId = this.ConvertToVertexId(graphCommand, "josh");
+                string lopId = this.ConvertToVertexId(graphCommand, "lop");
+                string vadasId = this.ConvertToVertexId(graphCommand, "vadas");
+                string peterId = this.ConvertToVertexId(graphCommand, "peter");
 
                 List<string> expected = new List<string>
                 {
@@ -610,7 +597,7 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
             {
                 graphCommand.OutputFormat = OutputFormat.GraphSON;
 
-                var traversal = graphCommand.g().V().As("a")
+                GraphTraversal2 traversal = graphCommand.g().V().As("a")
                                                     .Out().As("b")
                                                     .Where(
                                                         GraphTraversal2.__().As("b")
@@ -624,19 +611,19 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
                                                                                                                 .HasLabel("person")))
                                                     .Select("a", "b");
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
                 dynamic dynamicResult = JsonConvert.DeserializeObject<dynamic>(result.FirstOrDefault());
 
                 Assert.AreEqual(4, dynamicResult.Count);
                 List<string> ans = new List<string>();
-                foreach (var temp in dynamicResult)
+                foreach (dynamic temp in dynamicResult)
                 {
                     ans.Add("a," + temp["a"]["id"].ToString() + ";b," + temp["b"]["id"].ToString());
                 }
-                var markoId = ConvertToVertexId(graphCommand, "marko");
-                var joshId = ConvertToVertexId(graphCommand, "josh");
-                var lopId = ConvertToVertexId(graphCommand, "lop");
-                var peterId = ConvertToVertexId(graphCommand, "peter");
+                string markoId = this.ConvertToVertexId(graphCommand, "marko");
+                string joshId = this.ConvertToVertexId(graphCommand, "josh");
+                string lopId = this.ConvertToVertexId(graphCommand, "lop");
+                string peterId = this.ConvertToVertexId(graphCommand, "peter");
 
                 List<string> expected = new List<string>
                 {
@@ -660,18 +647,18 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
             {
                 graphCommand.OutputFormat = OutputFormat.GraphSON;
 
-                var traversal = graphCommand.g().V().As("a")
+                GraphTraversal2 traversal = graphCommand.g().V().As("a")
                                                     .Out("created").In("created").As("b")
                                                     .Where("a", Predicate.gt("b"))
                                                     .By("age")
                                                     .Select("a", "b").By("name");
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
                 dynamic dynamicResult = JsonConvert.DeserializeObject<dynamic>(result.FirstOrDefault());
 
                 Assert.AreEqual(3, dynamicResult.Count);
                 List<string> ans = new List<string>();
-                foreach (var temp in dynamicResult)
+                foreach (dynamic temp in dynamicResult)
                 {
                     ans.Add("a," + temp["a"].ToString() + ";b," + temp["b"].ToString());
                 }
@@ -698,14 +685,14 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
             {
                 graphCommand.OutputFormat = OutputFormat.GraphSON;
 
-                var traversal = graphCommand.g().V().As("a").OutE("created").As("b").InV().As("c").Where("a", Predicate.gt("b").Or(Predicate.eq("b"))).By("age").By("weight").By("weight").Select("a", "c").By("name");
+                GraphTraversal2 traversal = graphCommand.g().V().As("a").OutE("created").As("b").InV().As("c").Where("a", Predicate.gt("b").Or(Predicate.eq("b"))).By("age").By("weight").By("weight").Select("a", "c").By("name");
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
                 dynamic dynamicResult = JsonConvert.DeserializeObject<dynamic>(result.FirstOrDefault());
 
                 Assert.AreEqual(4, dynamicResult.Count);
                 List<string> ans = new List<string>();
-                foreach (var temp in dynamicResult)
+                foreach (dynamic temp in dynamicResult)
                 {
                     ans.Add("a," + temp["a"].ToString() + ";c," + temp["c"].ToString());
                 }
@@ -733,14 +720,14 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
             {
                 graphCommand.OutputFormat = OutputFormat.GraphSON;
 
-                var traversal = graphCommand.g().V().As("a").OutE("created").As("b").InV().As("c").In("created").As("d").Where("a", Predicate.lt("b").Or(Predicate.gt("c")).And(Predicate.neq("d"))).By("age").By("weight").By(GraphTraversal2.__().In("created").Values("age").Min()).Select("a", "c", "d").By("name");
+                GraphTraversal2 traversal = graphCommand.g().V().As("a").OutE("created").As("b").InV().As("c").In("created").As("d").Where("a", Predicate.lt("b").Or(Predicate.gt("c")).And(Predicate.neq("d"))).By("age").By("weight").By(GraphTraversal2.__().In("created").Values("age").Min()).Select("a", "c", "d").By("name");
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
                 dynamic dynamicResult = JsonConvert.DeserializeObject<dynamic>(result.FirstOrDefault());
 
                 Assert.AreEqual(4, dynamicResult.Count);
                 List<string> ans = new List<string>();
-                foreach (var temp in dynamicResult)
+                foreach (dynamic temp in dynamicResult)
                 {
                     ans.Add("a," + temp["a"].ToString() + ";c," + temp["c"].ToString() + ";d," + temp["d"].ToString());
                 }

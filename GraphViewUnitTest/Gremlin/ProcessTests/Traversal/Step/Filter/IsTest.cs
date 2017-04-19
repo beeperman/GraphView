@@ -1,15 +1,10 @@
-﻿
-using System.Collections.Generic;
-using System.Configuration;
+﻿using System.Collections.Generic;
+using System.Linq;
 using GraphView;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
 {
-    using System.Collections.Generic;
-    using System.Configuration;
-    using System.Linq;
-
     /// <summary>
     /// Tests for Is Step.
     /// </summary>
@@ -23,12 +18,12 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
         [TestMethod]
         public void VerticesValuesAgeIs32()
         {
-            using (GraphViewCommand GraphViewCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
                 // NOTE: original test checks for result returned to be type of Integer, but we aren't doing so.
-                var traversal = GraphViewCommand.g().V().Values("age").Is(32);
+                GraphTraversal2 traversal = command.g().V().Values("age").Is(32);
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
                 Assert.AreEqual(1, result.Count);
                 Assert.AreEqual("32", result.First());
             }
@@ -41,11 +36,11 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
         [TestMethod]
         public void VerticesValuesAgeIsLTE30()
         {
-            using (GraphViewCommand GraphViewCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                var traversal = GraphViewCommand.g().V().Values("age").Is(Predicate.lte(30));
+                GraphTraversal2 traversal = command.g().V().Values("age").Is(Predicate.lte(30));
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
                 Assert.AreEqual(2, result.Count);
                 CheckUnOrderedResults(new List<string> { "27", "29" }, result);
             }
@@ -58,11 +53,11 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
         [TestMethod]
         public void VerticesValuesAgeIsGTE29IsLT34()
         {
-            using (GraphViewCommand GraphViewCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                var traversal = GraphViewCommand.g().V().Values("age").Is(Predicate.gte(29)).Is(Predicate.lt(34));
+                GraphTraversal2 traversal = command.g().V().Values("age").Is(Predicate.gte(29)).Is(Predicate.lt(34));
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
                 Assert.AreEqual(2, result.Count);
                 CheckUnOrderedResults(new List<string> { "29", "32" }, result);
             }
@@ -75,11 +70,11 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
         [TestMethod]
         public void VerticesWhereInCreatedCountIs1ValuesName()
         {
-            using (GraphViewCommand GraphViewCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                var traversal = GraphViewCommand.g().V().Where(GraphTraversal2.__().In("created").Count().Is(1)).Values("name");
+                GraphTraversal2 traversal = command.g().V().Where(GraphTraversal2.__().In("created").Count().Is(1)).Values("name");
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
                 Assert.AreEqual(1, result.Count);
                 Assert.AreEqual("ripple", result.First());
             }
@@ -92,11 +87,11 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
         [TestMethod]
         public void VerticesWhereInCreatedCountIsGTE2ValuesName()
         {
-            using (GraphViewCommand GraphViewCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                var traversal = GraphViewCommand.g().V().Where(GraphTraversal2.__().In("created").Count().Is(Predicate.gte(2L))).Values("name");
+                GraphTraversal2 traversal = command.g().V().Where(GraphTraversal2.__().In("created").Count().Is(Predicate.gte(2L))).Values("name");
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
                 Assert.AreEqual(1, result.Count);
                 Assert.AreEqual("lop", result.First());
             }

@@ -20,13 +20,13 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
         [TestMethod]
         public void CoalesceWithNonexistentTraversals()
         {
-            using (GraphViewCommand GraphViewCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                var traversal = GraphViewCommand.g().V()
+                GraphTraversal2 traversal = command.g().V()
                     .Coalesce(
                         GraphTraversal2.__().Out("foo"),
                         GraphTraversal2.__().Out("bar"));
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
 
                 Assert.IsFalse(result.Any());
             }
@@ -40,15 +40,15 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
         [TestMethod]
         public void CoalesceWithTwoTraversals()
         {
-            using (GraphViewCommand GraphViewCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                var traversal = GraphViewCommand.g().V()
-                    .HasId(this.ConvertToVertexId(GraphViewCommand, "marko"))
+                GraphTraversal2 traversal = command.g().V()
+                    .HasId(this.ConvertToVertexId(command, "marko"))
                     .Coalesce(
                         GraphTraversal2.__().Out("knows"),
                         GraphTraversal2.__().Out("created"))
                     .Values("name");
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
 
                 AbstractGremlinTest.CheckUnOrderedResults(new string[] { "josh", "vadas" }, result);
             }
@@ -62,15 +62,15 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
         [TestMethod]
         public void CoalesceWithTraversalsInDifferentOrder()
         {
-            using (GraphViewCommand GraphViewCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                var traversal = GraphViewCommand.g().V()
-                    .HasId(this.ConvertToVertexId(GraphViewCommand, "marko"))
+                GraphTraversal2 traversal = command.g().V()
+                    .HasId(this.ConvertToVertexId(command, "marko"))
                     .Coalesce(
                         GraphTraversal2.__().Out("created"),
                         GraphTraversal2.__().Out("knows"))
                     .Values("name");
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
 
                 AbstractGremlinTest.CheckUnOrderedResults(new string[] { "lop" }, result);
             }
@@ -84,10 +84,10 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
         [TestMethod]
         public void CoalesceWithGroupCount()
         {
-            using (GraphViewCommand GraphViewCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                GraphViewCommand.OutputFormat = OutputFormat.GraphSON;
-                var traversal = GraphViewCommand.g().V()
+                command.OutputFormat = OutputFormat.GraphSON;
+                GraphTraversal2 traversal = command.g().V()
                     .Coalesce(
                         GraphTraversal2.__().Out("likes"),
                         GraphTraversal2.__().Out("knows"),
@@ -95,7 +95,7 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
                     .GroupCount()
                     .By("name");
 
-                var result = JsonConvert.DeserializeObject<dynamic>(traversal.Next().FirstOrDefault());
+                dynamic result = JsonConvert.DeserializeObject<dynamic>(traversal.Next().FirstOrDefault());
                 Assert.AreEqual(1, (int)result[0]["josh"]);
                 Assert.AreEqual(2, (int)result[0]["lop"]);
                 Assert.AreEqual(1, (int)result[0]["ripple"]);
@@ -112,10 +112,10 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
         [TestMethod]
         public void CoalesceWithPath()
         {
-            using (GraphViewCommand GraphViewCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                GraphViewCommand.OutputFormat = OutputFormat.GraphSON;
-                var traversal = GraphViewCommand.g().V()
+                command.OutputFormat = OutputFormat.GraphSON;
+                GraphTraversal2 traversal = command.g().V()
                     .Coalesce(
                         GraphTraversal2.__().OutE("knows"),
                         GraphTraversal2.__().OutE("created"))
@@ -124,13 +124,21 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
                     .By("name")
                     .By("label");
 
-                var result = JsonConvert.DeserializeObject<dynamic>(traversal.Next().FirstOrDefault());
+                dynamic results = JsonConvert.DeserializeObject<dynamic>(traversal.FirstOrDefault());
 
-                //CheckOrderedResults(new [] {"marko", "knows", "vadas"}, ((JArray)result[0]).Select(p=>p.ToString()).ToList());
-                //CheckOrderedResults(new[] { "marko", "knows", "josh" }, ((JArray)result[1]).Select(p => p.ToString()).ToList());
-                //CheckOrderedResults(new[] { "josh", "created", "ripple" }, ((JArray)result[2]).Select(p => p.ToString()).ToList());
-                //CheckOrderedResults(new[] { "josh", "created", "lop" }, ((JArray)result[3]).Select(p => p.ToString()).ToList());
-                //CheckOrderedResults(new[] { "peter", "created", "lop" }, ((JArray)result[3]).Select(p => p.ToString()).ToList());
+                List<string> expect = new List<string>
+                {
+                    string.Join(",", new [] { "marko", "knows", "vadas"}),
+                    string.Join(",", new [] { "marko", "knows", "josh" }),
+                    string.Join(",", new [] { "josh", "created", "ripple"}),
+                    string.Join(",", new [] { "josh", "created", "lop" }),
+                    string.Join(",", new [] { "peter", "created", "lop" }),
+                };
+                List<string> ans = new List<string>();
+                foreach (dynamic result in results) {
+                    ans.Add(string.Join(",", ((JArray)result["objects"]).Select(p => p.ToString()).ToList()));
+                }
+                CheckOrderedResults(expect, ans);
             }
         }
     }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using GraphView;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -18,17 +19,17 @@ namespace GraphViewUnitTest.Gremlin
         [TestMethod]
         public void AddEdgeWithNoExtraProperty()
         {
-            using (GraphViewCommand GraphViewCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                GraphViewCommand.OutputFormat = OutputFormat.GraphSON;
-                var traversal = GraphViewCommand.g().V()
+                command.OutputFormat = OutputFormat.GraphSON;
+                GraphTraversal2 traversal = command.g().V()
                     .Has("name", "marko")
                     .As("a")
                     .Out("created")
                     .AddE("createdBy")
                     .To("a");
                 dynamic result = JsonConvert.DeserializeObject<dynamic>(traversal.Next().FirstOrDefault());
-                GraphViewCommand.OutputFormat = OutputFormat.Regular;
+                command.OutputFormat = OutputFormat.Regular;
 
                 foreach (dynamic edge in result)
                 {
@@ -37,8 +38,8 @@ namespace GraphViewUnitTest.Gremlin
                 }
 
                 Assert.AreEqual(1, result.Count);
-                Assert.AreEqual(7, GraphViewCommand.g().E().Next().Count);
-                Assert.AreEqual(6, GraphViewCommand.g().V().Next().Count);
+                Assert.AreEqual(7, command.g().E().Next().Count);
+                Assert.AreEqual(6, command.g().V().Next().Count);
             }
         }
 
@@ -50,10 +51,10 @@ namespace GraphViewUnitTest.Gremlin
         [TestMethod]
         public void AddEdgeWithOneProperty()
         {
-            using (GraphViewCommand GraphViewCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                GraphViewCommand.OutputFormat = OutputFormat.GraphSON;
-                var traversal = GraphViewCommand.g().V()
+                command.OutputFormat = OutputFormat.GraphSON;
+                GraphTraversal2 traversal = command.g().V()
                     .Has("name", "marko")
                     .As("a")
                     .Out("created")
@@ -61,7 +62,7 @@ namespace GraphViewUnitTest.Gremlin
                     .To("a")
                     .Property("weight", 2.0d);
                 dynamic result = JsonConvert.DeserializeObject<dynamic>(traversal.Next().FirstOrDefault());
-                GraphViewCommand.OutputFormat = OutputFormat.Regular;
+                command.OutputFormat = OutputFormat.Regular;
 
                 foreach (dynamic edge in result)
                 {
@@ -71,8 +72,8 @@ namespace GraphViewUnitTest.Gremlin
                 }
 
                 Assert.AreEqual(1, result.Count);
-                Assert.AreEqual(7, GraphViewCommand.g().E().Next().Count);
-                Assert.AreEqual(6, GraphViewCommand.g().V().Next().Count);
+                Assert.AreEqual(7, command.g().E().Next().Count);
+                Assert.AreEqual(6, command.g().V().Next().Count);
             }
         }
 
@@ -81,17 +82,13 @@ namespace GraphViewUnitTest.Gremlin
         /// from org/apache/tinkerpop/gremlin/process/traversal/step/map/AddEdgeTest.java
         /// Gremlin: g.V().aggregate("x").as("a").select("x").unfold().addE("existsWith").to("a").property("time", "now");
         /// </summary>
-        /// <remarks>
-        /// Aggregate(sideEffectKey) is not implemented
-        /// Bug item: https://msdata.visualstudio.com/DocumentDB/_workitems/edit/36616
-        /// </remarks>
         [TestMethod]
         public void AddMultipleEdges()
         {
-            using (GraphViewCommand GraphViewCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                GraphViewCommand.OutputFormat = OutputFormat.GraphSON;
-                var traversal = GraphViewCommand.g().V()
+                command.OutputFormat = OutputFormat.GraphSON;
+                GraphTraversal2 traversal = command.g().V()
                     .Aggregate("x")
                     .As("a")
                     .Select("x")
@@ -100,7 +97,7 @@ namespace GraphViewUnitTest.Gremlin
                     .To("a")
                     .Property("time", "now");
                 dynamic result = JsonConvert.DeserializeObject<dynamic>(traversal.Next().FirstOrDefault());
-                GraphViewCommand.OutputFormat = OutputFormat.Regular;
+                command.OutputFormat = OutputFormat.Regular;
 
                 foreach (dynamic edge in result)
                 {
@@ -110,15 +107,15 @@ namespace GraphViewUnitTest.Gremlin
                 }
 
                 Assert.AreEqual(36, result.Count);
-                Assert.AreEqual(42, GraphViewCommand.g().E().Next().Count);
-                foreach (var v in GraphViewCommand.g().V().Id().Next())
+                Assert.AreEqual(42, command.g().E().Next().Count);
+                foreach (string v in command.g().V().Id().Next())
                 {
-                    var outCount = GraphViewCommand.g().V().HasId(v).OutE().HasLabel("existsWith").Next().Count;
-                    var inCount = GraphViewCommand.g().V().HasId(v).InE().HasLabel("existsWith").Next().Count;
+                    int outCount = command.g().V().HasId(v).OutE().HasLabel("existsWith").Next().Count;
+                    int inCount = command.g().V().HasId(v).InE().HasLabel("existsWith").Next().Count;
                     Assert.AreEqual(6, outCount);
                     Assert.AreEqual(6, inCount);
                 }
-                Assert.AreEqual(6, GraphViewCommand.g().V().Next().Count);
+                Assert.AreEqual(6, command.g().V().Next().Count);
             }
         }
 
@@ -130,10 +127,10 @@ namespace GraphViewUnitTest.Gremlin
         [TestMethod]
         public void AddEdgeWithWhere()
         {
-            using (GraphViewCommand GraphViewCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                GraphViewCommand.OutputFormat = OutputFormat.GraphSON;
-                var traversal = GraphViewCommand.g().V()
+                command.OutputFormat = OutputFormat.GraphSON;
+                GraphTraversal2 traversal = command.g().V()
                     .As("a")
                     .Out("created")
                     .In("created")
@@ -144,7 +141,7 @@ namespace GraphViewUnitTest.Gremlin
                     .To("b")
                     .Property("year", 2009);
                 dynamic result = JsonConvert.DeserializeObject<dynamic>(traversal.Next().FirstOrDefault());
-                GraphViewCommand.OutputFormat = OutputFormat.Regular;
+                command.OutputFormat = OutputFormat.Regular;
 
                 foreach (dynamic edge in result)
                 {
@@ -153,16 +150,16 @@ namespace GraphViewUnitTest.Gremlin
                     Assert.AreEqual(1, ((JObject)edge.properties).Count);
                     Assert.AreEqual("person", (string)edge.inVLabel);
                     Assert.AreEqual("person", (string)edge.outVLabel);
-                    var inVName = GraphViewCommand.g().V().HasId((string)edge.inV).Values("name").Next().FirstOrDefault();
-                    var outVName = GraphViewCommand.g().V().HasId((string)edge.outV).Values("name").Next().FirstOrDefault();
+                    string inVName = command.g().V().HasId((string)edge.inV).Values("name").Next().FirstOrDefault();
+                    string outVName = command.g().V().HasId((string)edge.outV).Values("name").Next().FirstOrDefault();
                     Assert.AreNotEqual("vadas", inVName);
                     Assert.AreNotEqual("vadas", outVName);
                     Assert.AreNotEqual(inVName, outVName);
                 }
 
                 Assert.AreEqual(6, result.Count);
-                Assert.AreEqual(12, GraphViewCommand.g().E().Next().Count);
-                Assert.AreEqual(6, GraphViewCommand.g().V().Next().Count);
+                Assert.AreEqual(12, command.g().E().Next().Count);
+                Assert.AreEqual(6, command.g().V().Next().Count);
             }
         }
 
@@ -174,10 +171,10 @@ namespace GraphViewUnitTest.Gremlin
         [TestMethod]
         public void AddEdgeWithMultipleProperties()
         {
-            using (GraphViewCommand GraphViewCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                GraphViewCommand.OutputFormat = OutputFormat.GraphSON;
-                var traversal = GraphViewCommand.g().V()
+                command.OutputFormat = OutputFormat.GraphSON;
+                GraphTraversal2 traversal = command.g().V()
                     .As("a")
                     .In("created")
                     .AddE("createdBy")
@@ -185,7 +182,7 @@ namespace GraphViewUnitTest.Gremlin
                     .Property("year", 2009)
                     .Property("acl", "public");
                 dynamic result = JsonConvert.DeserializeObject<dynamic>(traversal.Next().FirstOrDefault());
-                GraphViewCommand.OutputFormat = OutputFormat.Regular;
+                command.OutputFormat = OutputFormat.Regular;
 
                 foreach (dynamic edge in result)
                 {
@@ -195,8 +192,8 @@ namespace GraphViewUnitTest.Gremlin
                     Assert.AreEqual(2, ((JObject)edge.properties).Count);
                     Assert.AreEqual("person", (string)edge.inVLabel);
                     Assert.AreEqual("software", (string)edge.outVLabel);
-                    var inVName = GraphViewCommand.g().V().HasId((string)edge.inV).Values("name").Next().FirstOrDefault();
-                    var outVName = GraphViewCommand.g().V().HasId((string)edge.outV).Values("name").Next().FirstOrDefault();
+                    string inVName = command.g().V().HasId((string)edge.inV).Values("name").Next().FirstOrDefault();
+                    string outVName = command.g().V().HasId((string)edge.outV).Values("name").Next().FirstOrDefault();
                     if (outVName.Equals("ripple"))
                     {
                         Assert.AreEqual("josh", inVName);
@@ -204,8 +201,8 @@ namespace GraphViewUnitTest.Gremlin
                 }
 
                 Assert.AreEqual(4, result.Count);
-                Assert.AreEqual(10, GraphViewCommand.g().E().Next().Count);
-                Assert.AreEqual(6, GraphViewCommand.g().V().Next().Count);
+                Assert.AreEqual(10, command.g().E().Next().Count);
+                Assert.AreEqual(6, command.g().V().Next().Count);
             }
         }
 
@@ -213,23 +210,19 @@ namespace GraphViewUnitTest.Gremlin
         /// Original test
         /// Gremlin: g.V().has("name", "marko").as("a").out("created").addE("createdBy").to("a").label();
         /// </summary>
-        /// <remarks>
-        /// Add edge then Label() does not work
-        /// https://msdata.visualstudio.com/DocumentDB/_workitems/edit/36546
-        /// </remarks>
         [TestMethod]
         public void AddEdgeThenGetLabel()
         {
-            using (GraphViewCommand GraphViewCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                var traversal = GraphViewCommand.g().V()
+                GraphTraversal2 traversal = command.g().V()
                     .Has("name", "marko")
                     .As("a")
                     .Out("created")
                     .AddE("createdBy")
                     .To("a")
                     .Label();
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
 
                 Assert.AreEqual(1, result.Count);
                 Assert.AreEqual("createdBy", result.FirstOrDefault());

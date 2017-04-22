@@ -816,15 +816,9 @@ namespace GraphView
             //
             RawRecord result = new RawRecord();
 
-            // source, sink, other, edgeId, *
-            result.Append(new StringField(srcId));
-            result.Append(new StringField(sinkId));
-            result.Append(new StringField(otherVTag == 0 ? srcId : sinkId));
-            result.Append(new StringField(outEdgeField.EdgeId));
-            result.Append(outEdgeField);
-            
-            for (int i = GraphViewReservedProperties.ReservedEdgeProperties.Count; i < edgeProperties.Count; i++) {
-                FieldObject fieldValue = outEdgeField[edgeProperties[i]];
+            EdgeField edgeFieldWithOtherV = new EdgeField(outEdgeField, this.otherVTag == 0 ? srcId : sinkId);
+            foreach (string property in this.edgeProperties) {
+                FieldObject fieldValue = edgeFieldWithOtherV[property];
                 result.Append(fieldValue);
             }
 

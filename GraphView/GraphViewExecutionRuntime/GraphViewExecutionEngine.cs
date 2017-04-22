@@ -2340,9 +2340,24 @@ namespace GraphView
                 { GremlinKeyword.Star, ColumnGraphType.VertexObject }
             });
 
+        internal static ReadOnlyDictionary<string, ColumnGraphType> ReservedEdgePropertiesColumnGraphTypes { get; } =
+            new ReadOnlyDictionary<string, ColumnGraphType>(new Dictionary<string, ColumnGraphType>
+            {
+                { GremlinKeyword.EdgeSourceV, ColumnGraphType.EdgeSource },
+                { GremlinKeyword.EdgeSinkV, ColumnGraphType.EdgeSink },
+                { GremlinKeyword.EdgeOtherV, ColumnGraphType.Value },
+                { GremlinKeyword.EdgeID, ColumnGraphType.EdgeId },
+                { GremlinKeyword.Star, ColumnGraphType.EdgeObject }
+            });
+
         internal static bool IsNodeReservedProperty(string propertyName)
         {
             return ReservedNodeProperties.Contains(propertyName);
+        }
+
+        internal static bool IsEdgeReservedProperty(string propertyName)
+        {
+            return ReservedEdgeProperties.Contains(propertyName);
         }
 
         internal static ReadOnlyCollection<string> ReservedNodeProperties { get; } = 

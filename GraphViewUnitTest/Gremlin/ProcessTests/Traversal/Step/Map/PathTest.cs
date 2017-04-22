@@ -49,7 +49,7 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
 
                 Assert.AreEqual(3, results.Count);
                 List<string> expected = new List<string>();
-                foreach (var result in results)
+                foreach (dynamic result in results)
                 {
                     expected.Add((string)result["objects"][1]);
                 }
@@ -67,7 +67,7 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
             using (GraphViewCommand graphCommand = new GraphViewCommand(graphConnection))
             {
                 graphCommand.OutputFormat = OutputFormat.GraphSON;
-                var vertex = this.getVertexString(graphCommand, "marko");
+                string vertex = this.getVertexString(graphCommand, "marko");
                 
                 GraphTraversal2 traversal =
                     graphCommand.g().V().Repeat(GraphTraversal2.__().Out()).Times(2).Path().By().By("name").By("lang");
@@ -75,14 +75,14 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
 
                 Assert.AreEqual(2, results.Count);
                 List<string> actualList = new List<string>();
-                foreach (var result in results[0]["objects"])
+                foreach (dynamic result in results[0]["objects"])
                 {
                     actualList.Add(result.ToString());
                 } 
                 CheckPathResults(new List<string> { vertex, "josh", "java"}, actualList);
 
                 actualList.Clear();
-                foreach (var result in results[1]["objects"])
+                foreach (dynamic result in results[1]["objects"])
                 {
                     actualList.Add(result.ToString());
                 }
@@ -140,7 +140,7 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
             using (GraphViewCommand graphCommand = new GraphViewCommand(graphConnection))
             {
                 graphCommand.OutputFormat = OutputFormat.GraphSON;
-                var vertex = this.getVertexString(graphCommand, "marko");
+                string vertex = this.getVertexString(graphCommand, "marko");
 
                 GraphTraversal2 traversal =
                     graphCommand.g().V().As("a").Has("name", "marko").As("b").Has("age", 29).As("c").Path();

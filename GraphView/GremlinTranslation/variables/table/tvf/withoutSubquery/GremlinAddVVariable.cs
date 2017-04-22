@@ -12,16 +12,8 @@ namespace GraphView
         public string VertexLabel { get; set; }
         public bool IsFirstTableReference { get; set; }
 
-        /// <summary>
-        /// g.addV("name", "marko", "name", "mike").property("name", "peter")
-        /// => {"name": {cardinality: cardinality.Single, label: "peter"}  marko and mike will be covered
-        /// </summary>
-        public Dictionary<string, List<GremlinProperty>> PropertyFromAddVParameters { get; set; }
-
         internal override void Populate(string property)
         {
-            if (ProjectedProperties.Contains(property)) return;
-            VertexProperties.Add(new GremlinProperty(GremlinKeyword.PropertyCardinality.List, property, null, null));
             base.Populate(property);
         }
 
@@ -33,7 +25,12 @@ namespace GraphView
             {
                 parameters.Add(vertexProperty.ToPropertyExpr());
             }
+            foreach (string property in this.ProjectedProperties) {
+                parameters.Add(SqlUtil.GetValueExpr(property));
+            }
+
             var secondTableRef = SqlUtil.GetFunctionTableReference(GremlinKeyword.func.AddV, parameters, GetVariableName());
+
             var crossApplyTableRef = SqlUtil.GetCrossApplyTableReference(secondTableRef);
             crossApplyTableRef.FirstTableRef = IsFirstTableReference ? SqlUtil.GetDerivedTable(SqlUtil.GetSimpleSelectQueryBlock("1"), "_") : null;
             return crossApplyTableRef;
@@ -44,35 +41,6 @@ namespace GraphView
             VertexProperties = new List<GremlinProperty>(vertexProperties);
             VertexLabel = vertexLabel;
             IsFirstTableReference = isFirstTableReference;
-            ProjectedProperties.Add(GremlinKeyword.Label);
-
-            PropertyFromAddVParameters = new Dictionary<string, List<GremlinProperty>>();
-            foreach (var property in vertexProperties)
-            {
-                ProjectedProperties.Add(property.Key);
-                if (PropertyFromAddVParameters.ContainsKey(property.Key))
-                {
-                    PropertyFromAddVParameters[property.Key].Add(property);
-                }
-                else
-                {
-                    PropertyFromAddVParameters[property.Key] = new List<GremlinProperty> {property};
-                }
-            }
-        }
-
-        internal override void Property(GremlinToSqlContext currentContext, GremlinProperty vertexProperty)
-        {
-            vertexProperty.Cardinality = GremlinKeyword.PropertyCardinality.List;
-            if (PropertyFromAddVParameters.ContainsKey(vertexProperty.Key))
-            {
-                foreach (var property in PropertyFromAddVParameters[vertexProperty.Key])
-                {
-                    VertexProperties.Remove(property);
-                }
-            }
-            ProjectedProperties.Add(vertexProperty.Key);
-            VertexProperties.Add(vertexProperty);
         }
     }
 }

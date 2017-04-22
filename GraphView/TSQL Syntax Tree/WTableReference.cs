@@ -562,30 +562,7 @@ namespace GraphView
         }
     }
 
-    public partial class WAddETableReference : WSchemaObjectFunctionTableReference
-    {
-        public JObject ConstructEdgeJsonObject(out List<string> projectedFieldList)
-        {
-            projectedFieldList = new List<string>(GraphViewReservedProperties.ReservedEdgeProperties);
-            JObject edgeJsonDocument = new JObject();
-
-            // Skip edgeSourceScalarFunction, edgeSinkScalarFunction, otherVTag
-            for (var i = 3; i < Parameters.Count; i += 2)
-            {
-                var key = (Parameters[i] as WValueExpression).Value;
-                //var value = (Parameters[i + 1] as WValueExpression).ToString();
-                //edgeJsonDocument = GraphViewJsonCommand.insert_property(edgeJsonDocument, value, key).ToString();
-
-                GraphViewJsonCommand.UpdateProperty(edgeJsonDocument, Parameters[i] as WValueExpression,
-                    Parameters[i + 1] as WValueExpression);
-
-                if (!projectedFieldList.Contains(key))
-                    projectedFieldList.Add(key);
-            }
-
-            return edgeJsonDocument;
-        }
-    }
+    public partial class WAddETableReference : WSchemaObjectFunctionTableReference { }
 
     public class WPropertyExpression : WPrimaryExpression
     {

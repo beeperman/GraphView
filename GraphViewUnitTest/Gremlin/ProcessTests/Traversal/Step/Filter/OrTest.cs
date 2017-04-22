@@ -16,14 +16,14 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
         {
             using (GraphViewCommand graphCommand = new GraphViewCommand(graphConnection))
             {
-                var traversal = graphCommand.g().V().Or(
+                GraphTraversal2 traversal = graphCommand.g().V().Or(
                                                         GraphTraversal2.__().Has("age", Predicate.gt(27)),
                                                         GraphTraversal2.__().OutE()
                                                                             .Count()
                                                                             .Is(Predicate.gte(2L)))
                                                     .Values("name");
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
                 CheckUnOrderedResults(new List<string> { "marko", "josh", "peter" }, result);
             }
         }
@@ -37,7 +37,7 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
         {
             using (GraphViewCommand graphCommand = new GraphViewCommand(graphConnection))
             {
-                var traversal = graphCommand.g().V()
+                GraphTraversal2 traversal = graphCommand.g().V()
                     .Or(
                         GraphTraversal2.__()
                             .OutE("knows"),
@@ -51,7 +51,7 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
                                         .Has("age", Predicate.gte(35)))))
                     .Values("name");
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
                 CheckUnOrderedResults(new List<string> { "marko", "ripple", "lop", "peter" }, result);
             }
         }
@@ -65,11 +65,11 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
         {
             using (GraphViewCommand graphCommand = new GraphViewCommand(graphConnection))
             {
-                var traversal = graphCommand.g().V().As("a").Or(
+                GraphTraversal2 traversal = graphCommand.g().V().As("a").Or(
                                                                 GraphTraversal2.__().Select("a"),
                                                                 GraphTraversal2.__().Select("a"));
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
                 Assert.AreEqual(6, result.Count);
             }
         }

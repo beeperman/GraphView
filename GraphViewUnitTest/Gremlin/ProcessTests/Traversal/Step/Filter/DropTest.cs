@@ -20,13 +20,13 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
         {
             using (GraphViewCommand graphCommand = new GraphViewCommand(graphConnection))
             {
-                var traversal = graphCommand.g().V().OutE().Drop();
-                var result = traversal.Next();
+                GraphTraversal2 traversal = graphCommand.g().V().OutE().Drop();
+                List<string> result = traversal.Next();
 
-                var vertexTraversalAfterDrop = graphCommand.g().V();
+                GraphTraversal2 vertexTraversalAfterDrop = graphCommand.g().V();
                 Assert.AreEqual(6, vertexTraversalAfterDrop.Next().Count);
 
-                var edgeTraversalAfterDrop = graphCommand.g().E();
+                GraphTraversal2 edgeTraversalAfterDrop = graphCommand.g().E();
                 Assert.AreEqual(0, edgeTraversalAfterDrop.Next().Count);
             }
         }
@@ -39,13 +39,13 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
         {
             using (GraphViewCommand graphCommand = new GraphViewCommand(graphConnection))
             {
-                var traversal = graphCommand.g().V().Drop();
-                var result = traversal.Next();
+                GraphTraversal2 traversal = graphCommand.g().V().Drop();
+                List<string> result = traversal.Next();
 
-                var vertexTraversalAfterDrop = graphCommand.g().V();
+                GraphTraversal2 vertexTraversalAfterDrop = graphCommand.g().V();
                 Assert.AreEqual(0, vertexTraversalAfterDrop.Next().Count);
 
-                var edgeTraversalAfterDrop = graphCommand.g().E();
+                GraphTraversal2 edgeTraversalAfterDrop = graphCommand.g().E();
                 Assert.AreEqual(0, edgeTraversalAfterDrop.Next().Count);
             }
         }
@@ -79,8 +79,8 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
             {
                 GraphTraversal2 traversal = command.g().V().Drop();
                 List<string> result = traversal.Next();
-                Assert.AreEqual(0, GetEdgeCount(command));
-                Assert.AreEqual(0, GetVertexCount(command));
+                Assert.AreEqual(0, this.GetEdgeCount(command));
+                Assert.AreEqual(0, this.GetVertexCount(command));
             }
         }
 
@@ -105,7 +105,7 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Filter
                                                         .Property("name", "jinjin", "meta1", "metavalue").Next();
                
                 result = command.g().V().Has("name", "jinjin").Properties("name").Properties().Next();
-                Assert.AreEqual(2, result.Count);
+                Assert.AreEqual(1, result.Count);
 
                 command.g().V().Has("name", "jinjin").Properties("name").Properties().Drop().Next();
                 result = command.g().V().Has("name", "jinjin").Properties("name").Properties().Next();

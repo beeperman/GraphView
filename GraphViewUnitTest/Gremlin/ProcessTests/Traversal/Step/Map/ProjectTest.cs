@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System.Collections.Generic;
+using System.Linq;
 using GraphView;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json;
@@ -15,12 +16,6 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
         /// Port of the g_V_hasLabelXpersonX_projectXa_bX_byXoutE_countX_byXageX UT from org/apache/tinkerpop/gremlin/process/traversal/step/map/ProjectTest.java.
         /// Equivalent gremlin: "g.V.hasLabel('person').project('a','b').by(outE().count).by('age')"
         /// </summary>
-        /// <remarks>
-        /// Test fails because of the following bugs:
-        /// 1. By(string key) not implemented for Project Op.
-        /// \Development\Euler\Product\Microsoft.Azure.Graph\GraphView\GremlinTranslation2\map\GremlinProjectOp.cs, Line 48.
-        /// WorkItem: https://msdata.visualstudio.com/DocumentDB/_workitems/edit/37476
-        /// </remarks>
         [TestMethod]
         public void HasLabelPersonProjectABByOutECountByAge()
         {
@@ -28,7 +23,7 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
             {
                 graphCommand.OutputFormat = OutputFormat.GraphSON;
 
-                var traversal = graphCommand.g().V().HasLabel("person")
+                GraphTraversal2 traversal = graphCommand.g().V().HasLabel("person")
                                                     .Project("a", "b")
                                                     .By(GraphTraversal2.__().OutE().Count())
                                                     .By("age");
@@ -55,7 +50,7 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
         {
             using (GraphViewCommand graphCommand = new GraphViewCommand(graphConnection))
             {
-                var traversal = graphCommand.g().V().Out("created")
+                GraphTraversal2 traversal = graphCommand.g().V().Out("created")
                                                      .Project("a", "b")
                                                      .By("name")
                                                      .By(GraphTraversal2.__().In("created").Count())
@@ -64,7 +59,7 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
                                                                GremlinKeyword.Order.Decr)
                                                      .Select("a");
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
                 
                 CheckUnOrderedResults(new [] {"lop", "lop", "lop", "ripple"}, result);
             }

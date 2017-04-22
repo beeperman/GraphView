@@ -3,9 +3,7 @@ using System.Linq;
 using GraphView;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Newtonsoft.Json;
-//------------------------------------------------------------
-// Copyright (c) Microsoft Corporation.  All rights reserved.
-//------------------------------------------------------------
+
 namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
 {
     /// <summary>
@@ -21,17 +19,17 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
         [TestMethod]
         public void LocalOutEFoldUnfold()
         {
-            using (GraphViewCommand graphCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                graphCommand.OutputFormat = OutputFormat.GraphSON;
+                command.OutputFormat = OutputFormat.GraphSON;
 
-                var traversal = graphCommand.g().V().Local(GraphTraversal2.__().OutE().Fold()).Unfold();
+                GraphTraversal2 traversal = command.g().V().Local(GraphTraversal2.__().OutE().Fold()).Unfold();
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
                 dynamic dynamicResult = JsonConvert.DeserializeObject<dynamic>(result.FirstOrDefault());
                 HashSet<string> edgeIds = new HashSet<string>();
 
-                foreach (var res in dynamicResult)
+                foreach (dynamic res in dynamicResult)
                 {
                     edgeIds.Add(string.Format("{0}_{1}", res["inV"].ToString(), res["id"].ToString()));
                 }
@@ -45,20 +43,15 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
         /// Port of the g_V_valueMap_unfold_mapXkeyX UT from org/apache/tinkerpop/gremlin/process/traversal/step/map/UnfoldTest.java.
         /// Equivalent gremlin: "g.V.valueMap.unfold.map { it.key }"
         /// </summary>
-        /// <remarks>
-        /// Test fails becuase of the following:
-        /// 1. ValueMap is not implemented. WorkItem: https://msdata.visualstudio.com/DocumentDB/_workitems/edit/37472
-        /// 2. Test is disabled since the actual gremlin uses Map with a iterator function overload, which is not implemented. WorkItem: https://msdata.visualstudio.com/DocumentDB/_workitems/edit/37473
-        /// </remarks>
         [TestMethod]
         [Ignore]
         public void ValueMapUnfoldMapKey()
         {
-            using (GraphViewCommand graphCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                graphCommand.OutputFormat = OutputFormat.GraphSON;
+                command.OutputFormat = OutputFormat.GraphSON;
 
-                ////var traversal = graphCommand.g().V().ValueMap().Unfold().Map(m->m.get().getKey());
+                ////var traversal = command.g().V().ValueMap().Unfold().Map(m->m.get().getKey());
 
                 ////var result = traversal.Next();
 
@@ -75,15 +68,15 @@ namespace GraphViewUnitTest.Gremlin.ProcessTests.Traversal.Step.Map
         [TestMethod]
         public void HasVIdRepeatBothSimplePathUntilHasIdVPathByNameUnfold()
         {
-            using (GraphViewCommand graphCommand = new GraphViewCommand(graphConnection))
+            using (GraphViewCommand command = new GraphViewCommand(graphConnection))
             {
-                string vertexId1 = this.ConvertToVertexId(graphCommand, "marko");
-                string vertexId2 = this.ConvertToVertexId(graphCommand, "peter");
+                string vertexId1 = this.ConvertToVertexId(command, "marko");
+                string vertexId2 = this.ConvertToVertexId(command, "peter");
 
-                var traversal = graphCommand.g().V().HasId(vertexId1).Repeat(GraphTraversal2.__().Both().SimplePath()).Until(GraphTraversal2.__().HasId(vertexId2)).Path().By("name").Unfold();
+                GraphTraversal2 traversal = command.g().V().HasId(vertexId1).Repeat(GraphTraversal2.__().Both().SimplePath()).Until(GraphTraversal2.__().HasId(vertexId2)).Path().By("name").Unfold();
 
 
-                var result = traversal.Next();
+                List<string> result = traversal.Next();
 
                 CheckUnOrderedResults(new [] {"marko", "lop", "peter", "marko", "josh", "lop", "peter"}, result);
             }

@@ -1004,16 +1004,19 @@ namespace GraphView
                     }
                     else
                     {
-                        FieldObject pathStep = GetStepProjectionResult(step, ref activeByFuncIndex);
+                        Compose1Field basicStep = step as Compose1Field;
+                        Debug.Assert(basicStep != null, "basicStep != null");
 
-                        Compose1Field compose1PathStep = pathStep as Compose1Field;
-                        Debug.Assert(compose1PathStep != null, "compose1PathStep != null");
-                        //
                         // g.V().optional(__.count().V()).path()
-                        //
-                        if (compose1PathStep[compose1PathStep.DefaultProjectionKey] == null) {
+                        // When records in a pipeline go through an aggregation operator,
+                        // this operator produces only record and resets all the fields populated 
+                        // by prior steps to null. By path() semantics, all prior steps do not
+                        // appear in the path expression either.   
+                        if (basicStep[basicStep.DefaultProjectionKey] == null) {
                             continue;
                         }
+
+                        FieldObject pathStep = this.GetStepProjectionResult(step, ref activeByFuncIndex);
 
                         PathStepField pathStepField = new PathStepField(pathStep);
                         foreach (string label in stepLabels) {

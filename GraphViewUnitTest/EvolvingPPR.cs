@@ -16,7 +16,8 @@ namespace GraphViewUnitTest
     public class EvolvingPPR
     {
         GraphViewCommand graph;
-        Dictionary<String, Double> notConvergedV = new Dictionary<string, double>();
+        LRUDictionary<string, CacheVertex> cache = new LRUDictionary<string, CacheVertex>(int.MaxValue);
+        Dictionary<string, double> notConvergedV = new Dictionary<string, double>();
         double alpha = 0.85, beta = 1, bound = 0.01;
 
         double DefaultPageRank(string id)
@@ -24,52 +25,81 @@ namespace GraphViewUnitTest
             return beta * (1 - alpha);
         }
 
+        CacheVertex Touch(string id)
+        {
+            CacheVertex vertex;
+            if (!cache.TryGetValue(id, out vertex))
+            {
+                vertex = new CacheVertex(
+                    GetJTokenFromId(id), GetOutVerticesJArray(id));
+            }
+            cache.Add(id, vertex);
+            return vertex;
+        }
+
         public double GetPageRank(string id)
         {
-            return GetPageRank(GetJTokenFromId(id));
+            CacheVertex vertex = Touch(id);
+            return vertex.pageRank;
         }
-        public double GetPageRank(JToken from)
+        static public double GetPageRank(JToken from)
         {
             return from["properties"]["PageRank"].First["value"].ToObject<double>();
         }
 
-        public void UpdatePageRankAndResidue(double newPageRank, double newResidue, string id)
-        {
-            graph.g().V().HasId(id).
-                Property("PageRank", newPageRank).Property("Residue", newResidue).Next();
-        }
-        public void UpdatePageRankAndResidue(double newPageRank, double newResidue, JToken to)
-        {
-            UpdatePageRankAndResidue(newPageRank, newResidue, to["id"].ToString());
-        }
-
-        public double GetResidue(JToken from)
+        public double GetResidue(string id)
         {
             try
             {
-                return notConvergedV[from["id"].ToString()];
+                return notConvergedV[id];
             }
             catch
             {
+                CacheVertex vertex = Touch(id);
+                return vertex.residue;
+            } 
+        }
+        static public double GetResidue(JToken from)
+        {
                 return from["properties"]["Residue"].First["value"].ToObject<double>();
-            }
         }
 
-        public void UpdateResidue(double newResidue, JToken to)
+        public List<string> GetOutVertices(string id)
+        {
+            CacheVertex vertex = Touch(id);
+            return vertex.outVertices;
+        }
+        public List<string> GetOutVertices(JToken from)
+        {
+            return GetOutVertices(from["id"].ToString());
+        }
+        public JArray GetOutVerticesJArray(string id)
+        {
+            return JsonConvert.DeserializeObject<JArray>(
+                graph.g().V().HasId(id).Out().Next().FirstOrDefault());
+        }
+
+        // the to exists in cache!
+        public void UpdateResidue(double newResidue, string to)
         {
             if (Math.Abs(newResidue) > bound)
             {
-                notConvergedV[to["id"].ToString()] = newResidue;
+                notConvergedV[to] = newResidue;
             }
             else
             {
-                graph.g().V().HasId(to["id"].ToString()).Property("Residue", newResidue).Next();
+                CacheVertex vertex;
+                cache.TryGetValue(to, out vertex);
+                cache.Remove(to);
+                vertex.residue = newResidue;
+                cache.Add(to, vertex);
             }
         }
 
         public JToken GetJTokenFromId(string id)
         {
-            return JsonConvert.DeserializeObject<JArray>(graph.g().V().HasId(id).Next().FirstOrDefault())[0];
+            return JsonConvert.DeserializeObject<JArray>(
+                graph.g().V().HasId(id).Next().FirstOrDefault())[0];
         }
 
         // Not converged yet
@@ -78,25 +108,54 @@ namespace GraphViewUnitTest
             return notConvergedV.Count != 0;
         }
 
-        public JToken GetNotConverged()
+        public string GetNotConverged()
         {
             var key = notConvergedV.Take(1).First().Key;
-            return GetJTokenFromId(key);
+            return key;
         }
 
-        public JArray GetOutVertices(string id)
+        
+        // id exists in cache!
+        public void UpdatePageRankAndResidue(double newPageRank, double newResidue, string id)
         {
-            return JsonConvert.DeserializeObject<JArray>(
-                graph.g().V().HasId(id).Out().Next().FirstOrDefault());
+            CacheVertex vertex;
+            cache.TryGetValue(id, out vertex);
+            cache.Remove(id);
+            vertex.pageRank = newPageRank;
+            vertex.residue = newResidue;
+            cache.Add(id, vertex);
+            /*
+            graph.g().V().HasId(id).
+                Property("PageRank", newPageRank).Property("Residue", newResidue).Next();
+            */
         }
-        public JArray GetOutVertices(JToken from)
+        public void UpdatePageRankAndResidue(double newPageRank, double newResidue, JToken to)
         {
-            return GetOutVertices(from["id"].ToString());
+            UpdatePageRankAndResidue(newPageRank, newResidue, to["id"].ToString());
+        }
+        public void UpdatePageRankAndResidueV(double newPageRank, double newResidue, string id)
+        {
+            graph.g().V().HasId(id).
+                Property("PageRank", newPageRank).Property("Residue", newResidue).Next();
         }
 
-        public void DoneWith(JToken v)
+        public void DoneWith(string v)
         {
-            notConvergedV.Remove(v["id"].ToString());
+            notConvergedV.Remove(v);
+        }
+
+        public void FinishAndWriteBack()
+        {
+            string key;
+            while(cache.TryGetLast(out key))
+            {
+                CacheVertex vertex;
+                cache.TryGetValue(key, out vertex);
+                cache.Remove(key);
+                graph.g().V().HasId(key).
+                    Property("PageRank", vertex.pageRank).
+                    Property("Residue", vertex.residue).Next();
+            }
         }
 
         public void RunGSMethod()
@@ -126,13 +185,13 @@ namespace GraphViewUnitTest
             graph.OutputFormat = OutputFormat.GraphSON;
             {
                 var oldPageRank = GetPageRank(fromId);
-                JArray to = GetOutVertices(fromId);
+                var to = GetOutVertices(fromId);
 
                 // Update residue
                 foreach (var t in to)
                 {
                     double newResidue = GetResidue(t);
-                    if (toId.Equals(t["id"].ToString()))
+                    if (toId.Equals(t))
                     {
                         newResidue += alpha / to.Count * oldPageRank;
                     }
@@ -145,13 +204,14 @@ namespace GraphViewUnitTest
 
                 RunGSMethod();
 
+                FinishAndWriteBack();
             }
             graph.OutputFormat = OutputFormat.Regular;
         }
 
         public void AddV(string id)
         {
-            UpdatePageRankAndResidue(DefaultPageRank(id), 0d, id);
+            UpdatePageRankAndResidueV(DefaultPageRank(id), 0d, id);
         }
 
         [TestMethod]
@@ -194,6 +254,117 @@ namespace GraphViewUnitTest
                 AddE(fromId, toId1);
             }
             Console.WriteLine("Finished!");
+        }
+
+        public class CacheVertex
+        {
+            public List<string> outVertices = new List<string>();
+            public double pageRank;
+            public double residue;
+            public CacheVertex(JToken t, JArray outV)
+            {
+                pageRank = GetPageRank(t);
+                residue = GetResidue(t);
+                foreach (var o in outV)
+                {
+                    outVertices.Add(o["id"].ToString());
+                }
+            }
+        }
+    }
+
+    public class LRUDictionary<TKey, TValue>
+    {
+        private Dictionary<TKey, LinkedListNode<KeyValuePair<TKey, TValue>>> _dict = 
+            new Dictionary<TKey, LinkedListNode<KeyValuePair<TKey, TValue>>>();
+
+        private LinkedList<KeyValuePair<TKey, TValue>> _list =
+            new LinkedList<KeyValuePair<TKey, TValue>>();
+
+        public int Max_Size { get; set; }
+
+        public LRUDictionary(int maxsize)
+        {
+            Max_Size = maxsize;
+        }
+
+        public void Add(TKey key, TValue value)
+        {
+            lock (_dict)
+            {
+                LinkedListNode<KeyValuePair<TKey, TValue>> node;
+
+                if (_dict.TryGetValue(key, out node))
+                {
+                    _list.Remove(node);
+                    _list.AddFirst(node);
+                }
+                else
+                {
+                    node = new LinkedListNode<KeyValuePair<TKey, TValue>>(
+                    new KeyValuePair<TKey, TValue>(key, value));
+
+                    _dict.Add(key, node);
+                    _list.AddFirst(node);
+
+                }
+
+                if (_dict.Count > Max_Size)
+                {
+                    var nodetoremove = _list.Last;
+                    if (nodetoremove != null)
+                        Remove(nodetoremove.Value.Key);
+                }
+            }
+
+        }
+        public bool Remove(TKey key)
+        {
+            lock (_dict)
+            {
+                LinkedListNode<KeyValuePair<TKey, TValue>> removednode;
+                if (_dict.TryGetValue(key, out removednode))
+                {
+                    _dict.Remove(key);
+                    _list.Remove(removednode);
+                    return true;
+                }
+
+                else
+                    return false;
+            }
+        }
+
+        public bool TryGetValue(TKey key, out TValue value)
+        {
+            LinkedListNode<KeyValuePair<TKey, TValue>> node;
+
+            bool result = false;
+            lock (_dict)
+                result = _dict.TryGetValue(key, out node);
+
+            if (node != null)
+                value = node.Value.Value;
+            else
+                value = default(TValue);
+
+            return result;
+        }
+
+        public bool TryGetLast(out TKey key)
+        {
+            key = default(TKey);
+
+            if (_list.Count == 0)
+                return false;
+
+            key = _list.Last.Value.Key;
+            return true;
+        }
+        
+        public int Count()
+        {
+            return _list.Count;
         }
     }
 }

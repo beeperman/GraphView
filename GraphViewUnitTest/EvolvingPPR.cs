@@ -18,7 +18,7 @@ namespace GraphViewUnitTest
         GraphViewCommand graph;
         LRUDictionary<string, CacheVertex> cache = new LRUDictionary<string, CacheVertex>(int.MaxValue);
         Dictionary<string, double> notConvergedV = new Dictionary<string, double>();
-        double alpha = 0.85, beta = 1, bound = 0.01;
+        double alpha = 0.85, beta = 1, bound = 0.000001;
 
         double DefaultPageRank(string id)
         {
@@ -209,6 +209,40 @@ namespace GraphViewUnitTest
             graph.OutputFormat = OutputFormat.Regular;
         }
 
+        public void AddE(Dictionary<string, HashSet<string>> add)
+        {
+            graph.OutputFormat = OutputFormat.GraphSON;
+            {
+
+            foreach (var a in add)
+            {
+                var oldPageRank = GetPageRank(a.Key);
+                var to = GetOutVertices(a.Key);
+
+                // Update residue
+                foreach (var t in to)
+                {
+                    double newResidue = GetResidue(t);
+                    if (a.Value.Contains(t))
+                    {
+                        newResidue += alpha / to.Count * oldPageRank;
+                    }
+                    else
+                    {
+                        newResidue -= alpha * a.Value.Count /
+                            (to.Count * (to.Count - a.Value.Count)) * oldPageRank;
+                    }
+                    UpdateResidue(newResidue, t);
+                }
+            }
+
+            RunGSMethod();
+            FinishAndWriteBack();
+
+            }
+            graph.OutputFormat = OutputFormat.Regular;
+        }
+
         public void AddV(string id)
         {
             UpdatePageRankAndResidueV(DefaultPageRank(id), 0d, id);
@@ -226,7 +260,9 @@ namespace GraphViewUnitTest
             GraphViewConnection connection = new GraphViewConnection(DOCDB_URL, DOCDB_AUTHKEY, DOCDB_DATABASE, DOCDB_COLLECTION);
             connection.ResetCollection();
             graph = new GraphViewCommand(connection);
-
+            /* batch insert */
+            Dictionary<string, HashSet<string>> add =
+                new Dictionary<string, HashSet<string>>();
             // Froming a star-like graph
             for (int i = 1; i <= 3; i++)
             {
@@ -239,20 +275,29 @@ namespace GraphViewUnitTest
                     fromId = graph.g().AddV("node").Property("number", 10 * i + j).Values("id").Next()[0];
                     AddV(fromId);
                     graph.g().V().HasId(fromId).AddE("points_to").To(graph.g().V().HasId(id)).OutV().Values("id").Next();
-                    AddE(fromId, id);
+                    //AddE(fromId, id);
+                    HashSet<string> to = new HashSet<string>();
+                    to.Add(id);
+                    add.Add(fromId, to);
                 }
             }
 
             for (int i = 1; i <= 3; i++)
             {
+                
                 string toId0, toId1, fromId;
                 toId0 = graph.g().V().Has("number", i - 1 < 1 ? 3 : i - 1).Values("id").Next()[0];
                 toId1 = graph.g().V().Has("number", i + 1 > 3 ? 1 : i + 1).Values("id").Next()[0];
                 fromId = graph.g().V().Has("number", i).AddE("points_to").To(graph.g().V().HasId(toId0)).OutV().Values("id").Next()[0];
-                AddE(fromId, toId0);
+                //AddE(fromId, toId0);
                 graph.g().V().Has("number", i).AddE("points_to").To(graph.g().V().HasId(toId1)).Next();
-                AddE(fromId, toId1);
+                //AddE(fromId, toId1);
+                HashSet<string> to = new HashSet<string>();
+                to.Add(toId0);
+                to.Add(toId1);
+                add.Add(fromId, to);
             }
+            AddE(add);
             Console.WriteLine("Finished!");
         }
 
